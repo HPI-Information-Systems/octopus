@@ -1,30 +1,30 @@
-package sample.cluster.stats;
+package de.hpi.octopus.stats;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import sample.cluster.stats.StatsMessages.JobFailed;
-import sample.cluster.stats.StatsMessages.StatsJob;
-import sample.cluster.stats.StatsMessages.StatsResult;
-import java.util.concurrent.ThreadLocalRandom;
-import scala.concurrent.duration.Duration;
-import scala.concurrent.duration.FiniteDuration;
+import akka.actor.AbstractActor;
 import akka.actor.ActorSelection;
 import akka.actor.Address;
 import akka.actor.Cancellable;
-import akka.actor.AbstractActor;
 import akka.cluster.Cluster;
-import akka.cluster.ClusterEvent.UnreachableMember;
-import akka.cluster.ClusterEvent.ReachableMember;
 import akka.cluster.ClusterEvent.CurrentClusterState;
 import akka.cluster.ClusterEvent.MemberEvent;
 import akka.cluster.ClusterEvent.MemberUp;
 import akka.cluster.ClusterEvent.ReachabilityEvent;
+import akka.cluster.ClusterEvent.ReachableMember;
+import akka.cluster.ClusterEvent.UnreachableMember;
 import akka.cluster.Member;
 import akka.cluster.MemberStatus;
+import de.hpi.octopus.stats.StatsMessages.JobFailed;
+import de.hpi.octopus.stats.StatsMessages.StatsJob;
+import de.hpi.octopus.stats.StatsMessages.StatsResult;
+import scala.concurrent.duration.Duration;
+import scala.concurrent.duration.FiniteDuration;
 
 public class StatsSampleClient extends AbstractActor {
 

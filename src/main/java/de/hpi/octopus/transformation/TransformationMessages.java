@@ -1,4 +1,4 @@
-package sample.cluster.transformation;
+package de.hpi.octopus.transformation;
 
 import java.io.Serializable;
 

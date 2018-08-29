@@ -1,5 +1,8 @@
 package de.hpi.octopus;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
@@ -7,13 +10,17 @@ import com.beust.jcommander.Parameters;
 
 public class OctopusApp {
 
+	public static final String ACTOR_SYSTEM_NAME = "OctopusSystem";
+	public static final String MASTER_COMMAND = "master";
+	public static final String SLAVE_COMMAND = "slave";
+	
 	public static void main(String[] args) {
 
     	MasterCommand masterCommand = new MasterCommand();
         SlaveCommand slaveCommand = new SlaveCommand();
         JCommander jCommander = JCommander.newBuilder()
-        	.addCommand("master", masterCommand)
-            .addCommand("slave", slaveCommand)
+        	.addCommand(MASTER_COMMAND, masterCommand)
+            .addCommand(SLAVE_COMMAND, slaveCommand)
             .build();
 
         try {
@@ -24,15 +31,14 @@ public class OctopusApp {
             }
 
             switch (jCommander.getParsedCommand()) {
-                case "master":
-                    OctopusMaster.start(masterCommand.workers, masterCommand.port);
+                case MASTER_COMMAND:
+                    OctopusMaster.start(ACTOR_SYSTEM_NAME, MASTER_COMMAND, masterCommand.workers, masterCommand.host, masterCommand.port);
                     break;
-                case "slave":
-                    OctopusSlave.start(slaveCommand.workers, slaveCommand.port, slaveCommand.masterport, slaveCommand.masterhost);
+                case SLAVE_COMMAND:
+                    OctopusSlave.start(ACTOR_SYSTEM_NAME, SLAVE_COMMAND, slaveCommand.workers, slaveCommand.host, slaveCommand.port, slaveCommand.masterhost, slaveCommand.masterport);
                     break;
                 default:
                     throw new AssertionError();
-
             }
 
         } catch (ParameterException e) {
@@ -52,13 +58,24 @@ public class OctopusApp {
     	public static final int DEFAULT_SLAVE_PORT = 7879;
         public static final int DEFAULT_WORKERS = 4;
     	
-    	@Parameter(names = {"-w", "--workers"}, description = "number of workers to start locally", required = false)
-        int workers = DEFAULT_WORKERS;
+    	@Parameter(names = {"-h", "--host"}, description = "this machine's host name or IP to bind against")
+        String host = this.getDefaultHost();
 
+        String getDefaultHost() {
+            try {
+                return InetAddress.getLocalHost().getHostAddress();
+            } catch (UnknownHostException e) {
+                return "localhost";
+            }
+        }
+    	
         @Parameter(names = {"-p", "--port"}, description = "port to bind against", required = false)
         int port = this.getDefaultPort();
 
         abstract int getDefaultPort();
+
+    	@Parameter(names = {"-w", "--workers"}, description = "number of workers to start locally", required = false)
+        int workers = DEFAULT_WORKERS;
     }
 
     @Parameters(commandDescription = "start a master actor system")
@@ -82,6 +99,6 @@ public class OctopusApp {
         int masterport = DEFAULT_MASTER_PORT;
 
         @Parameter(names = {"-mh", "--masterhost"}, description = "host name or IP of the master", required = true)
-        int masterhost;
+        String masterhost;
     }
 }

@@ -1,4 +1,4 @@
-package sample.cluster.simple;
+package de.hpi.octopus.simple;
 
 import akka.actor.ActorSystem;
 import akka.actor.Props;

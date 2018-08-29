@@ -1,15 +1,15 @@
-package sample.cluster.stats;
+package de.hpi.octopus.stats;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import sample.cluster.stats.StatsMessages.JobFailed;
-import sample.cluster.stats.StatsMessages.StatsResult;
-import scala.concurrent.duration.Duration;
+import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.ReceiveTimeout;
-import akka.actor.AbstractActor;
+import de.hpi.octopus.stats.StatsMessages.JobFailed;
+import de.hpi.octopus.stats.StatsMessages.StatsResult;
+import scala.concurrent.duration.Duration;
 
 public class StatsAggregator extends AbstractActor {
 

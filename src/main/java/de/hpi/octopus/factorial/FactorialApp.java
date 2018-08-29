@@ -1,4 +1,4 @@
-package sample.cluster.factorial;
+package de.hpi.octopus.factorial;
 
 public class FactorialApp {
 

@@ -1,11 +1,11 @@
-package sample.cluster.stats;
+package de.hpi.octopus.stats;
 
-import sample.cluster.stats.StatsMessages.StatsJob;
+import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
-import akka.actor.AbstractActor;
 import akka.routing.ConsistentHashingRouter.ConsistentHashableEnvelope;
 import akka.routing.FromConfig;
+import de.hpi.octopus.stats.StatsMessages.StatsJob;
 
 public class StatsService extends AbstractActor {
 

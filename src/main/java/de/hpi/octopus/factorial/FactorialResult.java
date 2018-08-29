@@ -1,4 +1,4 @@
-package sample.cluster.factorial;
+package de.hpi.octopus.factorial;
 
 import java.math.BigInteger;
 import java.io.Serializable;

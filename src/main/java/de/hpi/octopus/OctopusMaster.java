@@ -7,23 +7,33 @@ import com.typesafe.config.ConfigFactory;
 
 import akka.actor.ActorSystem;
 import akka.cluster.Cluster;
-import de.hpi.octopus.actors.OctopusClusterListener;
+import de.hpi.octopus.actors.listeners.ClusterListener;
+import de.hpi.octopus.actors.listeners.MetricsListener;
 import scala.concurrent.Await;
 import scala.concurrent.duration.Duration;
 
 public class OctopusMaster {
 
-	public static void start(int workers, int port) {
+	public static void start(String actorSystemName, String actorSystemRole, int workers, String host, int port) {
 		
 		final Config config = ConfigFactory
-				.parseString("akka.cluster.roles = [master]")
+				.parseString(
+						"akka.remote.netty.tcp.hostname = \"" + host + "\"\n" +
+						"akka.remote.netty.tcp.port = " + port + "\n" + 
+						"akka.remote.artery.canonical.hostname = \"" + host + "\"\n" +
+						"akka.remote.artery.canonical.port = " + port + "\n" +
+						"akka.cluster.roles = [" + actorSystemRole + "]\n" +
+						"akka.cluster.seed-nodes = [\"akka://" + actorSystemName + "@" + host + ":" + port + "\"]")
 				.withFallback(ConfigFactory.load("octopus"));
 
-		final ActorSystem system = ActorSystem.create("OctopusSystem", config);
+		final ActorSystem system = ActorSystem.create(actorSystemName, config);
 		
-		system.actorOf(OctopusClusterListener.props(), OctopusClusterListener.DEFAULT_NAME);
+		system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
+		//system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
 		
-		
+		for (int i = 0; i < workers; i++) {
+			System.out.println("Start Worker " + i);
+		}
 		
 		
 		

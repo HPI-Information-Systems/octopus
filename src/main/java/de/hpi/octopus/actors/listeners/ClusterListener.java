@@ -1,4 +1,4 @@
-package de.hpi.octopus.actors;
+package de.hpi.octopus.actors.listeners;
 
 import akka.actor.AbstractActor;
 import akka.actor.Props;
@@ -11,15 +11,15 @@ import akka.cluster.ClusterEvent.UnreachableMember;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
 
-public class OctopusClusterListener extends AbstractActor {
+public class ClusterListener extends AbstractActor {
 	
-	public static final String DEFAULT_NAME = "listener";
+	public static final String DEFAULT_NAME = "clusterListener";
 	
 	LoggingAdapter log = Logging.getLogger(getContext().system(), this);
 	Cluster cluster = Cluster.get(getContext().system());
 
 	public static Props props() {
-		return Props.create(OctopusClusterListener.class);
+		return Props.create(ClusterListener.class);
 	}
 	
 	@Override

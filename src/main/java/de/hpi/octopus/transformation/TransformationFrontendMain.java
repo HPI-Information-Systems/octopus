@@ -1,4 +1,6 @@
-package sample.cluster.transformation;
+package de.hpi.octopus.transformation;
+
+import static akka.pattern.Patterns.ask;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -6,16 +8,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 
-import sample.cluster.transformation.TransformationMessages.TransformationJob;
-import scala.concurrent.ExecutionContext;
-import scala.concurrent.duration.Duration;
-import scala.concurrent.duration.FiniteDuration;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import akka.actor.Props;
 import akka.dispatch.OnSuccess;
 import akka.util.Timeout;
-import static akka.pattern.Patterns.ask;
+import de.hpi.octopus.transformation.TransformationMessages.TransformationJob;
+import scala.concurrent.ExecutionContext;
+import scala.concurrent.duration.Duration;
+import scala.concurrent.duration.FiniteDuration;
 
 public class TransformationFrontendMain {
 

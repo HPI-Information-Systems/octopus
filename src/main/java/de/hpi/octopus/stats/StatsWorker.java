@@ -1,4 +1,4 @@
-package sample.cluster.stats;
+package de.hpi.octopus.stats;
 
 import java.util.HashMap;
 import java.util.Map;

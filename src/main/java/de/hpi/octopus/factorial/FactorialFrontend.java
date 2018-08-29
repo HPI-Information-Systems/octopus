@@ -1,4 +1,4 @@
-package sample.cluster.factorial;
+package de.hpi.octopus.factorial;
 
 import java.util.concurrent.TimeUnit;
 import scala.concurrent.duration.Duration;

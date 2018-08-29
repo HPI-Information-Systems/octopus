@@ -1,14 +1,15 @@
-package sample.cluster.transformation;
+package de.hpi.octopus.transformation;
 
-import static sample.cluster.transformation.TransformationMessages.BACKEND_REGISTRATION;
-import sample.cluster.transformation.TransformationMessages.TransformationJob;
-import sample.cluster.transformation.TransformationMessages.TransformationResult;
+import static de.hpi.octopus.transformation.TransformationMessages.BACKEND_REGISTRATION;
+
 import akka.actor.AbstractActor;
 import akka.cluster.Cluster;
 import akka.cluster.ClusterEvent.CurrentClusterState;
 import akka.cluster.ClusterEvent.MemberUp;
 import akka.cluster.Member;
 import akka.cluster.MemberStatus;
+import de.hpi.octopus.transformation.TransformationMessages.TransformationJob;
+import de.hpi.octopus.transformation.TransformationMessages.TransformationResult;
 
 public class TransformationBackend extends AbstractActor {
 

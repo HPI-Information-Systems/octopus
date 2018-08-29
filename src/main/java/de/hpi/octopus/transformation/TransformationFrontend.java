@@ -1,15 +1,15 @@
-package sample.cluster.transformation;
+package de.hpi.octopus.transformation;
 
-import static sample.cluster.transformation.TransformationMessages.BACKEND_REGISTRATION;
+import static de.hpi.octopus.transformation.TransformationMessages.BACKEND_REGISTRATION;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import sample.cluster.transformation.TransformationMessages.JobFailed;
-import sample.cluster.transformation.TransformationMessages.TransformationJob;
+import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.Terminated;
-import akka.actor.AbstractActor;
+import de.hpi.octopus.transformation.TransformationMessages.JobFailed;
+import de.hpi.octopus.transformation.TransformationMessages.TransformationJob;
 
 public class TransformationFrontend extends AbstractActor {
 

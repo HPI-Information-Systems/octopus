@@ -1,9 +1,10 @@
-package sample.cluster.factorial;
+package de.hpi.octopus.factorial;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import akka.actor.ActorSystem;
 import akka.actor.Props;
+import de.hpi.octopus.actors.listeners.MetricsListener;
 
 public class FactorialBackendMain {
 
