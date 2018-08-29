@@ -10,7 +10,7 @@ import com.beust.jcommander.Parameters;
 
 public class OctopusApp {
 
-	public static final String ACTOR_SYSTEM_NAME = "OctopusSystem";
+	public static final String ACTOR_SYSTEM_NAME = "octopus";
 	public static final String MASTER_COMMAND = "master";
 	public static final String SLAVE_COMMAND = "slave";
 	
