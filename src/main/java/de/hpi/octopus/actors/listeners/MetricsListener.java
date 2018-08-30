@@ -16,15 +16,15 @@ import akka.event.LoggingAdapter;
 public class MetricsListener extends AbstractActor {
 
 	public static final String DEFAULT_NAME = "metricsListener";
-	
-	LoggingAdapter log = Logging.getLogger(getContext().system(), this);
-	Cluster cluster = Cluster.get(getContext().system());
-	ClusterMetricsExtension extension = ClusterMetricsExtension.get(getContext().system());
 
 	public static Props props() {
 		return Props.create(MetricsListener.class);
 	}
 	
+	LoggingAdapter log = Logging.getLogger(getContext().system(), this);
+	Cluster cluster = Cluster.get(getContext().system());
+	ClusterMetricsExtension extension = ClusterMetricsExtension.get(getContext().system());
+
 	@Override
 	public void preStart() {
 		this.extension.subscribe(self());

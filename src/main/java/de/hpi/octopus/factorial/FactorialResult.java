@@ -8,7 +8,7 @@ public class FactorialResult implements Serializable {
 	public final int n;
 	public final BigInteger factorial;
 
-	FactorialResult(int n, BigInteger factorial) {
+	public FactorialResult(int n, BigInteger factorial) {
 		this.n = n;
 		this.factorial = factorial;
 	}

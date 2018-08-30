@@ -14,22 +14,22 @@ import akka.event.LoggingAdapter;
 public class ClusterListener extends AbstractActor {
 	
 	public static final String DEFAULT_NAME = "clusterListener";
-	
-	LoggingAdapter log = Logging.getLogger(getContext().system(), this);
-	Cluster cluster = Cluster.get(getContext().system());
 
 	public static Props props() {
 		return Props.create(ClusterListener.class);
 	}
 	
+	LoggingAdapter log = Logging.getLogger(getContext().system(), this);
+	Cluster cluster = Cluster.get(getContext().system());
+
 	@Override
 	public void preStart() {
-		this.cluster.subscribe(self(), MemberEvent.class, UnreachableMember.class);
+		this.cluster.subscribe(this.self(), MemberEvent.class, UnreachableMember.class);
 	}
 
 	@Override
 	public void postStop() {
-		this.cluster.unsubscribe(self());
+		this.cluster.unsubscribe(this.self());
 	}
 
 	@Override
