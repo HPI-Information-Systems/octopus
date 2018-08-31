@@ -68,6 +68,7 @@ public class Profiler extends AbstractActor {
 		this.context().watch(this.sender());
 		
 		this.assign(this.sender());
+		this.log.info("Registered {}", this.sender());
 	}
 	
 	private void handle(Terminated message) {
@@ -78,7 +79,8 @@ public class Profiler extends AbstractActor {
 			if (work != null) {
 				this.assign(work);
 			}
-		}
+		}		
+		this.log.info("Unregistered {}", message.getActor());
 	}
 	
 	private void handle(TaskMessage message) {
@@ -92,6 +94,8 @@ public class Profiler extends AbstractActor {
 	private void handle(CompletionMessage message) {
 		ActorRef worker = this.sender();
 		WorkMessage work = this.busyWorkers.remove(worker);
+
+		this.log.info("Completed: [{},{}]", Arrays.toString(work.getX()), Arrays.toString(work.getY()));
 		
 		switch (message.getResult()) {
 			case MINIMAL: 
@@ -136,7 +140,7 @@ public class Profiler extends AbstractActor {
 	}
 	
 	private void report(WorkMessage work) {
-		this.log.info("UCC: {}", work.getX().toString());
+		this.log.info("UCC: {}", Arrays.toString(work.getX()));
 	}
 
 	private void split(WorkMessage work) {

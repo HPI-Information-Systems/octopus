@@ -1,23 +1,19 @@
 package de.hpi.octopus.actors;
 
-import static de.hpi.octopus.transformation.TransformationMessages.BACKEND_REGISTRATION;
-
 import java.io.Serializable;
 
 import akka.actor.AbstractActor;
 import akka.actor.Props;
-import akka.actor.AbstractActor.Receive;
 import akka.cluster.Cluster;
-import akka.cluster.Member;
-import akka.cluster.MemberStatus;
 import akka.cluster.ClusterEvent.CurrentClusterState;
 import akka.cluster.ClusterEvent.MemberUp;
+import akka.cluster.Member;
+import akka.cluster.MemberStatus;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
+import de.hpi.octopus.OctopusMaster;
 import de.hpi.octopus.actors.Profiler.CompletionMessage;
 import de.hpi.octopus.actors.Profiler.RegistrationMessage;
-import de.hpi.octopus.transformation.TransformationMessages.TransformationJob;
-import de.hpi.octopus.transformation.TransformationMessages.TransformationResult;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -72,17 +68,38 @@ public class Worker extends AbstractActor {
 	}
 
 	void register(Member member) {
-		if (member.hasRole("master")) work here // TODO read master name from somewhere else // TODO start a profiler and some worker in OctopusMaster/-Slave
+		if (member.hasRole(OctopusMaster.MASTER_ROLE))
 			getContext()
 				.actorSelection(member.address() + "/user/" + Profiler.DEFAULT_NAME)
 				.tell(new RegistrationMessage(), this.self());
 	}
 
 	private void handle(WorkMessage message) {
-		boolean y = true;
-		for (int i = 0; i < 100000; i++)
-			y = y && "aiurgvilabgvöaieuröiaebrvöiuervaöioeur".equals("aiurgvilabgvöaieuröiaebrvöiuervaöioeur");
-
+		long y = 0;
+		for (int i = 0; i < 1000000; i++)
+			if (this.isPrime(i))
+				y = y + i;
+		
+		this.log.info("done: " + y);
+		
 		this.sender().tell(new CompletionMessage(CompletionMessage.status.EXTENDABLE), this.self());
+	}
+	
+	private boolean isPrime(long n) {
+		
+		// Check for the most basic primes
+		if (n == 1 || n == 2 || n == 3)
+			return true;
+
+		// Check if n is an even number
+		if (n % 2 == 0)
+			return false;
+
+		// Check the odds
+		for (long i = 3; i * i <= n; i += 2)
+			if (n % i == 0)
+				return false;
+		
+		return true;
 	}
 }

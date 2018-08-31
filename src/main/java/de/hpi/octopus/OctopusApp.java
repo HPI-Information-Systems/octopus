@@ -7,20 +7,19 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.Parameters;
+import de.hpi.octopus.OctopusMaster;
 
 public class OctopusApp {
 
 	public static final String ACTOR_SYSTEM_NAME = "octopus";
-	public static final String MASTER_COMMAND = "master";
-	public static final String SLAVE_COMMAND = "slave";
 	
 	public static void main(String[] args) {
 
     	MasterCommand masterCommand = new MasterCommand();
         SlaveCommand slaveCommand = new SlaveCommand();
         JCommander jCommander = JCommander.newBuilder()
-        	.addCommand(MASTER_COMMAND, masterCommand)
-            .addCommand(SLAVE_COMMAND, slaveCommand)
+        	.addCommand(OctopusMaster.MASTER_ROLE, masterCommand)
+            .addCommand(OctopusSlave.SLAVE_ROLE, slaveCommand)
             .build();
 
         try {
@@ -31,11 +30,11 @@ public class OctopusApp {
             }
 
             switch (jCommander.getParsedCommand()) {
-                case MASTER_COMMAND:
-                    OctopusMaster.start(ACTOR_SYSTEM_NAME, MASTER_COMMAND, masterCommand.workers, masterCommand.host, masterCommand.port);
+                case OctopusMaster.MASTER_ROLE:
+                    OctopusMaster.start(ACTOR_SYSTEM_NAME, masterCommand.workers, masterCommand.host, masterCommand.port);
                     break;
-                case SLAVE_COMMAND:
-                    OctopusSlave.start(ACTOR_SYSTEM_NAME, SLAVE_COMMAND, slaveCommand.workers, slaveCommand.host, slaveCommand.port, slaveCommand.masterhost, slaveCommand.masterport);
+                case OctopusSlave.SLAVE_ROLE:
+                    OctopusSlave.start(ACTOR_SYSTEM_NAME, slaveCommand.workers, slaveCommand.host, slaveCommand.port, slaveCommand.masterhost, slaveCommand.masterport);
                     break;
                 default:
                     throw new AssertionError();
