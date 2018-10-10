@@ -45,7 +45,10 @@ public class OctopusMaster extends OctopusSystem {
 		
 		final Scanner scanner = new Scanner(System.in);
 		String line = scanner.nextLine();
+		scanner.close();
 		
-		system.actorSelection("/user/" + Profiler.DEFAULT_NAME).tell(new Profiler.TaskMessage(10), ActorRef.noSender());
+		int attributes = Integer.parseInt(line);
+		
+		system.actorSelection("/user/" + Profiler.DEFAULT_NAME).tell(new Profiler.TaskMessage(attributes), ActorRef.noSender());
 	}
 }
