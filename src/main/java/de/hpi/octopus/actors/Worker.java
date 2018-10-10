@@ -19,12 +19,20 @@ import lombok.Data;
 
 public class Worker extends AbstractActor {
 
+	////////////////////////
+	// Actor Construction //
+	////////////////////////
+	
 	public static final String DEFAULT_NAME = "worker";
 
 	public static Props props() {
 		return Props.create(Worker.class);
 	}
 
+	////////////////////
+	// Actor Messages //
+	////////////////////
+	
 	@Data @AllArgsConstructor @SuppressWarnings("unused")
 	public static class WorkMessage implements Serializable {
 		private static final long serialVersionUID = -7643194361868862395L;
@@ -33,9 +41,17 @@ public class Worker extends AbstractActor {
 		private int[] y;
 	}
 
-	LoggingAdapter log = Logging.getLogger(getContext().system(), this);
-	Cluster cluster = Cluster.get(getContext().system());
+	/////////////////
+	// Actor State //
+	/////////////////
+	
+	private final LoggingAdapter log = Logging.getLogger(this.context().system(), this);
+	private final Cluster cluster = Cluster.get(this.context().system());
 
+	/////////////////////
+	// Actor Lifecycle //
+	/////////////////////
+	
 	@Override
 	public void preStart() {
 		this.cluster.subscribe(this.self(), MemberUp.class);
@@ -46,6 +62,10 @@ public class Worker extends AbstractActor {
 		this.cluster.unsubscribe(this.self());
 	}
 
+	////////////////////
+	// Actor Behavior //
+	////////////////////
+	
 	@Override
 	public Receive createReceive() {
 		return receiveBuilder()
@@ -67,9 +87,9 @@ public class Worker extends AbstractActor {
 		this.register(message.member());
 	}
 
-	void register(Member member) {
+	private void register(Member member) {
 		if (member.hasRole(OctopusMaster.MASTER_ROLE))
-			getContext()
+			this.getContext()
 				.actorSelection(member.address() + "/user/" + Profiler.DEFAULT_NAME)
 				.tell(new RegistrationMessage(), this.self());
 	}

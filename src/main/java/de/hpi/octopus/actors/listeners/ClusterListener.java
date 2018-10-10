@@ -12,16 +12,28 @@ import akka.event.Logging;
 import akka.event.LoggingAdapter;
 
 public class ClusterListener extends AbstractActor {
+
+	////////////////////////
+	// Actor Construction //
+	////////////////////////
 	
 	public static final String DEFAULT_NAME = "clusterListener";
 
 	public static Props props() {
 		return Props.create(ClusterListener.class);
 	}
-	
-	LoggingAdapter log = Logging.getLogger(getContext().system(), this);
-	Cluster cluster = Cluster.get(getContext().system());
 
+	/////////////////
+	// Actor State //
+	/////////////////
+	
+	private final LoggingAdapter log = Logging.getLogger(this.context().system(), this);
+	private final Cluster cluster = Cluster.get(this.context().system());
+
+	/////////////////////
+	// Actor Lifecycle //
+	/////////////////////
+	
 	@Override
 	public void preStart() {
 		this.cluster.subscribe(this.self(), MemberEvent.class, UnreachableMember.class);
@@ -32,6 +44,10 @@ public class ClusterListener extends AbstractActor {
 		this.cluster.unsubscribe(this.self());
 	}
 
+	////////////////////
+	// Actor Behavior //
+	////////////////////
+	
 	@Override
 	public Receive createReceive() {
 		return receiveBuilder().match(CurrentClusterState.class, state -> {

@@ -19,12 +19,20 @@ import lombok.Data;
 
 public class Profiler extends AbstractActor {
 
+	////////////////////////
+	// Actor Construction //
+	////////////////////////
+	
 	public static final String DEFAULT_NAME = "profiler";
 
 	public static Props props() {
 		return Props.create(Profiler.class);
 	}
 
+	////////////////////
+	// Actor Messages //
+	////////////////////
+	
 	@Data @AllArgsConstructor
 	public static class RegistrationMessage implements Serializable {
 		private static final long serialVersionUID = 4545299661052078209L;
@@ -45,13 +53,21 @@ public class Profiler extends AbstractActor {
 		private status result;
 	}
 	
-	LoggingAdapter log = Logging.getLogger(getContext().system(), this);
+	/////////////////
+	// Actor State //
+	/////////////////
+	
+	private final LoggingAdapter log = Logging.getLogger(getContext().system(), this);
 
 	private final Queue<WorkMessage> unassignedWork = new LinkedList<>();
 	private final Queue<ActorRef> idleWorkers = new LinkedList<>();
 	private final Map<ActorRef, WorkMessage> busyWorkers = new HashMap<>();
 
 	private TaskMessage task;
+
+	////////////////////
+	// Actor Behavior //
+	////////////////////
 	
 	@Override
 	public Receive createReceive() {

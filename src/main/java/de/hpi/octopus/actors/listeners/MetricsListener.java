@@ -15,16 +15,28 @@ import akka.event.LoggingAdapter;
 
 public class MetricsListener extends AbstractActor {
 
+	////////////////////////
+	// Actor Construction //
+	////////////////////////
+	
 	public static final String DEFAULT_NAME = "metricsListener";
 
 	public static Props props() {
 		return Props.create(MetricsListener.class);
 	}
-	
-	LoggingAdapter log = Logging.getLogger(getContext().system(), this);
-	Cluster cluster = Cluster.get(getContext().system());
-	ClusterMetricsExtension extension = ClusterMetricsExtension.get(getContext().system());
 
+	/////////////////
+	// Actor State //
+	/////////////////
+	
+	private final LoggingAdapter log = Logging.getLogger(getContext().system(), this);
+	private final Cluster cluster = Cluster.get(getContext().system());
+	private final ClusterMetricsExtension extension = ClusterMetricsExtension.get(getContext().system());
+
+	/////////////////////
+	// Actor Lifecycle //
+	/////////////////////
+	
 	@Override
 	public void preStart() {
 		this.extension.subscribe(self());
@@ -35,14 +47,19 @@ public class MetricsListener extends AbstractActor {
 		this.extension.unsubscribe(self());
 	}
 
+	////////////////////
+	// Actor Behavior //
+	////////////////////
+	
 	@Override
 	public Receive createReceive() {
-		return receiveBuilder().match(ClusterMetricsChanged.class, this::logMetrics)
+		return receiveBuilder()
+			.match(ClusterMetricsChanged.class, this::logMetrics)
 			.match(CurrentClusterState.class, message -> {/*Ignore*/})
 			.build();
 	}
 	
-	void logMetrics(ClusterMetricsChanged clusterMetrics) {
+	private void logMetrics(ClusterMetricsChanged clusterMetrics) {
 		for (NodeMetrics nodeMetrics : clusterMetrics.getNodeMetrics()) {
 			if (nodeMetrics.address().equals(this.cluster.selfAddress())) {
 				logHeap(nodeMetrics);
@@ -51,18 +68,17 @@ public class MetricsListener extends AbstractActor {
 		}
 	}
 
-	void logHeap(NodeMetrics nodeMetrics) {
+	private void logHeap(NodeMetrics nodeMetrics) {
 		HeapMemory heap = StandardMetrics.extractHeapMemory(nodeMetrics);
 		if (heap != null) {
 			this.log.info("Used heap: {} MB", ((double) heap.used()) / 1024 / 1024);
 		}
 	}
 
-	void logCpu(NodeMetrics nodeMetrics) {
+	private void logCpu(NodeMetrics nodeMetrics) {
 		Cpu cpu = StandardMetrics.extractCpu(nodeMetrics);
 		if (cpu != null && cpu.systemLoadAverage().isDefined()) {
 			this.log.info("Load: {} ({} processors)", cpu.systemLoadAverage().get(), cpu.processors());
 		}
 	}
-
 }
