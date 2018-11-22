@@ -4,8 +4,8 @@ import com.typesafe.config.Config;
 
 import akka.actor.ActorSystem;
 import akka.cluster.Cluster;
-import de.hpi.octopus.actors.Worker;
 import de.hpi.octopus.actors.listeners.MetricsListener;
+import de.hpi.octopus.actors.slaves.Validator;
 
 public class OctopusSlave extends OctopusSystem {
 
@@ -24,7 +24,7 @@ public class OctopusSlave extends OctopusSystem {
 				system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
 
 				for (int i = 0; i < workers; i++)
-					system.actorOf(Worker.props(), Worker.DEFAULT_NAME + i);
+					system.actorOf(Validator.props(), Validator.DEFAULT_NAME + i);
 			}
 		});
 	}

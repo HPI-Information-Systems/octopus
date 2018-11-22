@@ -7,14 +7,13 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.Parameters;
-import de.hpi.octopus.OctopusMaster;
 
 public class OctopusApp {
 
 	public static final String ACTOR_SYSTEM_NAME = "octopus";
 	
 	public static void main(String[] args) {
-
+		
     	MasterCommand masterCommand = new MasterCommand();
         SlaveCommand slaveCommand = new SlaveCommand();
         JCommander jCommander = JCommander.newBuilder()

@@ -8,9 +8,9 @@ import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import akka.cluster.Cluster;
 import akka.cluster.metrics.SystemLoadAverageMetricsSelector;
-import de.hpi.octopus.actors.Profiler;
-import de.hpi.octopus.actors.Worker;
 import de.hpi.octopus.actors.listeners.ClusterListener;
+import de.hpi.octopus.actors.masters.Profiler;
+import de.hpi.octopus.actors.slaves.Validator;
 
 public class OctopusMaster extends OctopusSystem {
 	
@@ -31,7 +31,7 @@ public class OctopusMaster extends OctopusSystem {
 				system.actorOf(Profiler.props(), Profiler.DEFAULT_NAME);
 				
 				for (int i = 0; i < workers; i++)
-					system.actorOf(Worker.props(), Worker.DEFAULT_NAME + i);
+					system.actorOf(Validator.props(), Validator.DEFAULT_NAME + i);
 				
 			//	int maxInstancesPerNode = workers; // TODO: Every node gets the same number of workers, so it cannot be a parameter for the slave nodes
 			//	Set<String> useRoles = new HashSet<>(Arrays.asList("master", "slave"));
@@ -49,6 +49,6 @@ public class OctopusMaster extends OctopusSystem {
 		
 		int attributes = Integer.parseInt(line);
 		
-		system.actorSelection("/user/" + Profiler.DEFAULT_NAME).tell(new Profiler.TaskMessage(attributes), ActorRef.noSender());
+		system.actorSelection("/user/" + Profiler.DEFAULT_NAME).tell(new Profiler.DiscoveryTaskMessage(attributes, null, null), ActorRef.noSender());
 	}
 }
