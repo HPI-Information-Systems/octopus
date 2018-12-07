@@ -54,7 +54,7 @@ public class OctopusApp {
 
     	public static final int DEFAULT_MASTER_PORT = 7877;
     	public static final int DEFAULT_SLAVE_PORT = 7879;
-        public static final int DEFAULT_WORKERS = 4;
+        public static final int DEFAULT_WORKERS = 8;
     	
     	@Parameter(names = {"-h", "--host"}, description = "this machine's host name or IP to bind against")
         String host = this.getDefaultHost();

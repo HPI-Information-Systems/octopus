@@ -1,11 +1,12 @@
 package de.hpi.octopus.actors.slaves;
 
+import java.io.Serializable;
+
 import akka.actor.Props;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.masters.Profiler.ValidationResultMessage;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 
 public class Validator extends Slave {
 
@@ -23,8 +24,8 @@ public class Validator extends Slave {
 	// Actor Messages //
 	////////////////////
 	
-	@Data @EqualsAndHashCode(callSuper=false) @AllArgsConstructor @SuppressWarnings("unused")
-	public static class ValidationMessage extends WorkMessage {
+	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	public static class ValidationMessage implements Serializable {
 		private static final long serialVersionUID = -7643194361868862395L;
 		private ValidationMessage() {}
 		private int[] x;
@@ -44,20 +45,31 @@ public class Validator extends Slave {
 	////////////////////
 
 	@Override
+	public Receive createReceive() {
+		return receiveBuilder()
+				.match(ValidationMessage.class, this::handle)
+				.build()
+				.orElse(super.createReceive());
+	}
+
+	@Override
+	protected String getName() {
+		return Validator.DEFAULT_NAME;
+	}
+	
+	@Override
 	protected String getMasterName() {
 		return Profiler.DEFAULT_NAME;
 	}
 	
-	@Override
-	protected void handle(WorkMessage message) {
-		ValidationMessage validationMessage = (ValidationMessage) message;
+	protected void handle(ValidationMessage message) {
 		
 		long y = 0;
 		for (int i = 0; i < 1000000; i++)
 			if (this.isPrime(i))
 				y = y + i;
 		
-		this.log.info("done: " + y);
+		this.log().info("done: " + y);
 		
 		this.sender().tell(new ValidationResultMessage(ValidationResultMessage.status.EXTENDABLE), this.self());
 	}

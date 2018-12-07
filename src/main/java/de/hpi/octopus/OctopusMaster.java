@@ -1,5 +1,6 @@
 package de.hpi.octopus;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 
 import com.typesafe.config.Config;
@@ -7,10 +8,12 @@ import com.typesafe.config.Config;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import akka.cluster.Cluster;
-import akka.cluster.metrics.SystemLoadAverageMetricsSelector;
 import de.hpi.octopus.actors.listeners.ClusterListener;
+import de.hpi.octopus.actors.masters.Preprocessor;
 import de.hpi.octopus.actors.masters.Profiler;
+import de.hpi.octopus.actors.slaves.Indexer;
 import de.hpi.octopus.actors.slaves.Validator;
+import de.hpi.octopus.structures.Input;
 
 public class OctopusMaster extends OctopusSystem {
 	
@@ -28,10 +31,15 @@ public class OctopusMaster extends OctopusSystem {
 				system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
 			//	system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
 
+				system.actorOf(Preprocessor.props(), Preprocessor.DEFAULT_NAME);
+				
 				system.actorOf(Profiler.props(), Profiler.DEFAULT_NAME);
 				
 				for (int i = 0; i < workers; i++)
 					system.actorOf(Validator.props(), Validator.DEFAULT_NAME + i);
+				
+				for (int i = 0; i < workers; i++)
+					system.actorOf(Indexer.props(), Indexer.DEFAULT_NAME + i);
 				
 			//	int maxInstancesPerNode = workers; // TODO: Every node gets the same number of workers, so it cannot be a parameter for the slave nodes
 			//	Set<String> useRoles = new HashSet<>(Arrays.asList("master", "slave"));
@@ -45,10 +53,20 @@ public class OctopusMaster extends OctopusSystem {
 		
 		final Scanner scanner = new Scanner(System.in);
 		String line = scanner.nextLine();
+		System.out.println(line);
+		
+		Input input = new Input(
+				"ncvoter_Statewide_1024001r_71c", "/home/thorsten/Data/Development/workspace/papenbrock/HyFDTestRunner/data/", ".csv",
+				true, StandardCharsets.UTF_8, ',', '"', '\\', "", false, true, 100, 0, true);
+		
+		system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new Preprocessor.PreprocessingTaskMessage(input), ActorRef.noSender());
+		
+		//system.actorSelection("/user/" + Profiler.DEFAULT_NAME).tell(new Profiler.DiscoveryTaskMessage(attributes, null, null), ActorRef.noSender());
+		
+		line = scanner.nextLine();
+		System.out.println(line);
 		scanner.close();
 		
-		int attributes = Integer.parseInt(line);
-		
-		system.actorSelection("/user/" + Profiler.DEFAULT_NAME).tell(new Profiler.DiscoveryTaskMessage(attributes, null, null), ActorRef.noSender());
+		system.terminate();
 	}
 }

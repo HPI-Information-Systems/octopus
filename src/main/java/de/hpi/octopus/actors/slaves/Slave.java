@@ -1,36 +1,24 @@
 package de.hpi.octopus.actors.slaves;
 
-import java.io.Serializable;
-
-import akka.actor.AbstractActor;
+import akka.actor.AbstractLoggingActor;
 import akka.cluster.Cluster;
 import akka.cluster.ClusterEvent.CurrentClusterState;
 import akka.cluster.ClusterEvent.MemberUp;
 import akka.cluster.Member;
 import akka.cluster.MemberStatus;
-import akka.event.Logging;
-import akka.event.LoggingAdapter;
 import de.hpi.octopus.OctopusMaster;
-import de.hpi.octopus.actors.masters.Master.RegistrationMessage;
-import lombok.AllArgsConstructor;
-import lombok.Data;
+import de.hpi.octopus.actors.masters.Master;
 
-public abstract class Slave extends AbstractActor {
+public abstract class Slave extends AbstractLoggingActor {
 
 	////////////////////
 	// Actor Messages //
 	////////////////////
 	
-	@Data @AllArgsConstructor
-	public static class WorkMessage implements Serializable {
-		private static final long serialVersionUID = -1848021041995334016L;
-	}
-
 	/////////////////
 	// Actor State //
 	/////////////////
 	
-	protected final LoggingAdapter log = Logging.getLogger(this.context().system(), this);
 	protected final Cluster cluster = Cluster.get(this.context().system());
 
 	/////////////////////
@@ -56,8 +44,7 @@ public abstract class Slave extends AbstractActor {
 		return receiveBuilder()
 				.match(CurrentClusterState.class, this::handle)
 				.match(MemberUp.class, this::handle)
-				.match(WorkMessage.class, this::handle)
-				.matchAny(object -> this.log.info("Received unknown message: \"{}\"", object.toString()))
+				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
 				.build();
 	}
 
@@ -76,10 +63,10 @@ public abstract class Slave extends AbstractActor {
 		if (member.hasRole(OctopusMaster.MASTER_ROLE))
 			this.getContext()
 				.actorSelection(member.address() + "/user/" + this.getMasterName())
-				.tell(new RegistrationMessage(), this.self());
+				.tell(new Master.RegistrationMessage(this.getName()), this.self());
 	}
 	
+	protected abstract String getName();
+	
 	protected abstract String getMasterName();
-
-	protected abstract void handle(WorkMessage message) throws Exception;
 }

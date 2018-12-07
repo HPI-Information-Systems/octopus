@@ -12,6 +12,7 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<scala.version>2.12</scala.version>
 		<akka.version>2.5.15</akka.version>
+		<metanome.version>1.2-SNAPSHOT</metanome.version>
 	</properties>
 
 	<dependencies>
@@ -81,18 +82,25 @@
 			<artifactId>lombok</artifactId>
 			<version>1.18.2</version>
 		</dependency>
-		
-		<dependency>
-			<groupId>org.apache.commons</groupId>
-			<artifactId>commons-csv</artifactId>
-			<version>1.6</version>
-		</dependency>
-		
+
 		<dependency>
 			<groupId>it.unimi.dsi</groupId>
 			<artifactId>fastutil</artifactId>
 			<version>8.2.2</version>
 		</dependency>
+
+		<dependency>
+			<groupId>de.metanome</groupId>
+			<artifactId>algorithm_integration</artifactId>
+			<version>${metanome.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>de.metanome</groupId>
+			<artifactId>backend</artifactId>
+			<version>${metanome.version}</version>
+		</dependency>
+
 	</dependencies>
 
 	<build>
