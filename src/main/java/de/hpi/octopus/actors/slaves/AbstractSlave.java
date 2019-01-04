@@ -7,9 +7,9 @@ import akka.cluster.ClusterEvent.MemberUp;
 import akka.cluster.Member;
 import akka.cluster.MemberStatus;
 import de.hpi.octopus.OctopusMaster;
-import de.hpi.octopus.actors.masters.Master;
+import de.hpi.octopus.actors.masters.AbstractMaster;
 
-public abstract class Slave extends AbstractLoggingActor {
+public abstract class AbstractSlave extends AbstractLoggingActor {
 
 	////////////////////
 	// Actor Messages //
@@ -60,10 +60,11 @@ public abstract class Slave extends AbstractLoggingActor {
 	}
 
 	protected void register(Member member) {
-		if (member.hasRole(OctopusMaster.MASTER_ROLE))
+		if (member.hasRole(OctopusMaster.MASTER_ROLE)) {
 			this.getContext()
 				.actorSelection(member.address() + "/user/" + this.getMasterName())
-				.tell(new Master.RegistrationMessage(this.getName()), this.self());
+				.tell(new AbstractMaster.RegistrationMessage(this.getName()), this.self());
+		}
 	}
 	
 	protected abstract String getName();

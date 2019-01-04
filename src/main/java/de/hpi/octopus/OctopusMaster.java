@@ -8,7 +8,7 @@ import com.typesafe.config.Config;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import akka.cluster.Cluster;
-import de.hpi.octopus.actors.listeners.ClusterListener;
+import de.hpi.octopus.actors.Storekeeper;
 import de.hpi.octopus.actors.masters.Preprocessor;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.slaves.Indexer;
@@ -28,18 +28,26 @@ public class OctopusMaster extends OctopusSystem {
 		Cluster.get(system).registerOnMemberUp(new Runnable() {
 			@Override
 			public void run() {
-				system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
+			//	system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
 			//	system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
 
 				system.actorOf(Preprocessor.props(), Preprocessor.DEFAULT_NAME);
-				
-				system.actorOf(Profiler.props(), Profiler.DEFAULT_NAME);
-				
-				for (int i = 0; i < workers; i++)
-					system.actorOf(Validator.props(), Validator.DEFAULT_NAME + i);
-				
+
 				for (int i = 0; i < workers; i++)
 					system.actorOf(Indexer.props(), Indexer.DEFAULT_NAME + i);
+
+				ActorRef profiler = system.actorOf(Profiler.props(), Profiler.DEFAULT_NAME);
+				
+				ActorRef storekeeper = system.actorOf(Storekeeper.props(), Storekeeper.DEFAULT_NAME);
+				
+				for (int i = 0; i < workers; i++)
+					system.actorOf(Validator.props(storekeeper), Validator.DEFAULT_NAME + i);
+				
+				
+			//	ActorRef testActor1 = system.actorOf(TestActor.props(null), TestActor.DEFAULT_NAME + 1);
+			//	ActorRef testActor2 = system.actorOf(TestActor.props(testActor1), TestActor.DEFAULT_NAME + 2);
+			//	int[] data = {1,2,3};
+			//	testActor2.tell(new TestActor.TestMessage(data), ActorRef.noSender());
 				
 			//	int maxInstancesPerNode = workers; // TODO: Every node gets the same number of workers, so it cannot be a parameter for the slave nodes
 			//	Set<String> useRoles = new HashSet<>(Arrays.asList("master", "slave"));

@@ -20,7 +20,7 @@ import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-public class Preprocessor extends Master {
+public class Preprocessor extends AbstractMaster {
 
 	////////////////////////
 	// Actor Construction //
@@ -58,9 +58,10 @@ public class Preprocessor extends Master {
 		private static final long serialVersionUID = 7327628760076825469L;
 		private BatchMessage() {}
 		private List<List<String>> batch;
+		private String[] schema;
 		private int watermark;
 	}
-	
+
 	@Data @AllArgsConstructor @SuppressWarnings("unused")
 	public static class IndexingDoneMessage implements Serializable {
 		private static final long serialVersionUID = 1221354994262265715L;
@@ -82,6 +83,7 @@ public class Preprocessor extends Master {
 
 	private int[][][] plis;
 	private int numRecords;
+	private String[] schema;
 	
 	private int watermark = 0;
 	
@@ -171,10 +173,11 @@ public class Preprocessor extends Master {
 		
 		final List<List<String>> batch = message.getBatch();
 		
-		// If the batch is empty, the input has been read and processed so that we can query the results
-		if (batch.isEmpty()) {
+		// If no batch data was send, the input has been read and processed so that we can query the results
+		if (batch == null) {
 			this.plis = new int[this.attribute2indexer.size()][][];
 			this.numRecords = 0;
+			this.schema = message.getSchema();
 			
 			if (this.attribute2indexer.isEmpty()) {
 				this.endPreprocessing();
@@ -298,7 +301,7 @@ public class Preprocessor extends Master {
 	
 	private void endPreprocessing() {
 		// Report resulting plis
-		this.context().actorSelection("/user/" + Profiler.DEFAULT_NAME).tell(new Profiler.DiscoveryTaskMessage(this.plis, this.numRecords), this.self());
+		this.context().actorSelection("/user/" + Profiler.DEFAULT_NAME).tell(new Profiler.DiscoveryTaskMessage(this.plis, this.numRecords, this.schema), this.self());
 		
 		// Terminate the preprocessing hierarchy
 		this.self().tell(PoisonPill.getInstance(), this.self());

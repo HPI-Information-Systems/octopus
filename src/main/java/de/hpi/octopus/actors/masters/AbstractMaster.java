@@ -7,7 +7,7 @@ import akka.actor.Terminated;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-public abstract class Master extends AbstractLoggingActor {
+public abstract class AbstractMaster extends AbstractLoggingActor {
 
 	////////////////////
 	// Actor Messages //

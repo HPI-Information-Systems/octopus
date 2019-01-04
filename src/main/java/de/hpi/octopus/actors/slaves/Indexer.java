@@ -17,7 +17,7 @@ import it.unimi.dsi.fastutil.ints.IntIterator;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-public class Indexer extends Slave {
+public class Indexer extends AbstractSlave {
 
 	////////////////////////
 	// Actor Construction //

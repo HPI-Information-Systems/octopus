@@ -2,9 +2,11 @@ package de.hpi.octopus;
 
 import com.typesafe.config.Config;
 
+import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import akka.cluster.Cluster;
-import de.hpi.octopus.actors.listeners.MetricsListener;
+import de.hpi.octopus.actors.Storekeeper;
+import de.hpi.octopus.actors.slaves.Indexer;
 import de.hpi.octopus.actors.slaves.Validator;
 
 public class OctopusSlave extends OctopusSystem {
@@ -20,11 +22,16 @@ public class OctopusSlave extends OctopusSystem {
 		Cluster.get(system).registerOnMemberUp(new Runnable() {
 			@Override
 			public void run() {
-				//system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
-				system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
+			//	system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
+			//	system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
 
 				for (int i = 0; i < workers; i++)
-					system.actorOf(Validator.props(), Validator.DEFAULT_NAME + i);
+					system.actorOf(Indexer.props(), Indexer.DEFAULT_NAME + i);
+
+				ActorRef storekeeper = system.actorOf(Storekeeper.props(), Storekeeper.DEFAULT_NAME);
+				
+				for (int i = 0; i < workers; i++)
+					system.actorOf(Validator.props(storekeeper), Validator.DEFAULT_NAME + i);
 			}
 		});
 	}
