@@ -4,7 +4,9 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import akka.actor.ActorRef;
 import akka.actor.Props;
@@ -45,6 +47,14 @@ public class Validator extends AbstractSlave {
 		private BitSet[] lhss;
 		private int rhs;
 	}
+	
+	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	public static class SamplingMessage implements Serializable {
+		private static final long serialVersionUID = -8572954221161108586L;
+		private SamplingMessage() {}
+		private int attribute;
+		private int distance;
+	}
 
 	@Data @AllArgsConstructor @SuppressWarnings("unused")
 	public static class DataMessage implements Serializable {
@@ -63,8 +73,8 @@ public class Validator extends AbstractSlave {
 	
 	private ActorRef storekeeper;
 	
-	private ValidationMessage waitingValidationMessage;
-	private ActorRef waitingValidationSender;
+	private Object waitingMessage;
+	private ActorRef waitingMessageSender;
 
 	/////////////////////
 	// Actor Lifecycle //
@@ -78,6 +88,7 @@ public class Validator extends AbstractSlave {
 	public Receive createReceive() {
 		return receiveBuilder()
 				.match(ValidationMessage.class, this::handle)
+				.match(SamplingMessage.class, this::handle)
 				.match(DataMessage.class, this::handle)
 				.build()
 				.orElse(super.createReceive());
@@ -98,17 +109,65 @@ public class Validator extends AbstractSlave {
 		this.plis = message.getPlis();
 		this.records = message.getRecords();
 		
-		// Process the waiting validation message
-		this.process(this.waitingValidationMessage, this.waitingValidationSender);
-		this.waitingValidationMessage = null;
-		this.waitingValidationSender = null;
+		// Process the waiting message
+		if (this.waitingMessage instanceof ValidationMessage)
+			this.process((ValidationMessage) this.waitingMessage, this.waitingMessageSender);
+		else
+			this.process((SamplingMessage) this.waitingMessage, this.waitingMessageSender);
+		this.waitingMessage = null;
+		this.waitingMessageSender = null;
+	}
+	
+	private void handle(SamplingMessage message) {
+		// If the validation data is not present, put the sampling message to waiting and request the data
+		if (this.plis == null) {
+			this.waitingMessage = message;
+			this.waitingMessageSender = this.sender();
+			this.storekeeper.tell(new Storekeeper.SendDataMessage(), this.self());
+			return;
+		}
+		
+		// Process the sampling message
+		this.process(message, this.sender());
+	}
+	
+	private void process(SamplingMessage message, ActorRef sender) {
+		Set<BitSet> matches = new HashSet<>();
+		
+		// Match all records with their "distance" neighbor w.r.t. the pli of the given "attribute"
+		BitSet match = new BitSet(this.plis.length);
+		for (int[] cluster : this.plis[message.getAttribute()]) {
+			for (int record = 0; record < cluster.length - message.getDistance(); record++) {
+				for (int attribute = 0; attribute < this.plis.length; attribute++)
+					if (isEqual(this.records[record][attribute], this.records[record + message.getDistance()][attribute]))
+						match.set(attribute);
+				
+				if (!matches.contains(match))
+					matches.add((BitSet) match.clone());
+				matches.clear();
+			}
+		}
+		
+		// Convert matches into invalid FDs
+		List<FunctionalDependency> invalidFDs = new ArrayList<>(matches.size() * this.plis.length / 2);
+		for (BitSet bitsetLhs : matches) {
+			for (int rhs = 0; rhs < this.plis.length; rhs++) {
+				if (!bitsetLhs.get(rhs)) {
+					invalidFDs.add(new FunctionalDependency(bitsetLhs, rhs));
+				}
+			}
+		}
+		matches = null;
+		
+		// Send the result to the sender of the sampling message
+		sender.tell(toValidationResultMessage(invalidFDs), this.self());
 	}
 	
 	private void handle(ValidationMessage message) {
 		// If the validation data is not present, put the validation message to waiting and request the data
 		if (this.plis == null) {
-			this.waitingValidationMessage = message;
-			this.waitingValidationSender = this.sender();
+			this.waitingMessage = message;
+			this.waitingMessageSender = this.sender();
 			this.storekeeper.tell(new Storekeeper.SendDataMessage(), this.self());
 			return;
 		}
@@ -124,9 +183,7 @@ public class Validator extends AbstractSlave {
 		// Process the validation message		
 		int rhs = message.getRhs();
 		for (BitSet lhsBitSet : message.getLhss()) { // The lhs should have at least one attribute, because we do not discover {}->A FDs
-			int[] lhs = new int[lhsBitSet.cardinality()];
-			for (int attribute = lhsBitSet.nextSetBit(0), i = 0; attribute >= 0; attribute = lhsBitSet.nextSetBit(attribute + 1), i++)
-				lhs[i] = attribute;
+			int[] lhs = toArray(lhsBitSet);
 			
 			int[] violation = this.findViolation(lhs, rhs);
 			if (violation != null) {
@@ -147,28 +204,8 @@ public class Validator extends AbstractSlave {
 			}
 		}
 		
-		// Send result to the sender of the validation message
-		Collections.sort(invalidFDs);
-		List<BitSet[]> invalidLhss = new ArrayList<>();
-		IntList invalidRhss = new IntArrayList();
-		int i = 0;
-		while (i < invalidFDs.size()) {
-			int j = i + 1;
-			while ((j < invalidFDs.size()) && (invalidFDs.get(j).getRhs() == invalidFDs.get(i).getRhs()))
-				j++;
-			
-			BitSet[] currentLhss = new BitSet[j - i];
-			for (int k = 0, l = i; l < j; k++, l++)
-				currentLhss[k] = invalidFDs.get(l).getLhs();
-			
-			invalidLhss.add(currentLhss);
-			invalidRhss.add(invalidFDs.get(i).getRhs());
-			
-			i = j;
-		}
-		sender.tell(new ValidationResultMessage(
-				invalidLhss.toArray(new BitSet[invalidFDs.size()][]), 
-				invalidRhss.toArray(new int[invalidFDs.size()])), this.self());
+		// Send the result to the sender of the validation message
+		sender.tell(toValidationResultMessage(invalidFDs), this.self());
 	}
 
 	private int[] findViolation(int[] lhs, int rhs) {
@@ -213,8 +250,47 @@ public class Validator extends AbstractSlave {
 	
 	private boolean isMatch(int recordID1, int recordID2, int[] attributes) {
 		for (int attribute : attributes)
-			if ((this.records[recordID1][attribute] == -1) || (this.records[recordID1][attribute] != this.records[recordID2][attribute]))
+			if (isDifferent(this.records[recordID1][attribute], this.records[recordID2][attribute]))
 				return false;
 		return true;
+	}
+	
+	private static boolean isEqual(int value1, int value2) {
+		return !isDifferent(value1, value2);
+	}
+	
+	private static boolean isDifferent(int value1, int value2) {
+		return (value1 == -1) || (value1 != value2);
+	}
+	
+	private static int[] toArray(BitSet bitSet) {
+		int[] array = new int[bitSet.cardinality()];
+		for (int trueBit = bitSet.nextSetBit(0), index = 0; trueBit >= 0; trueBit = bitSet.nextSetBit(trueBit + 1), index++)
+			array[index] = trueBit;
+		return array;
+	}
+	
+	private static ValidationResultMessage toValidationResultMessage(List<FunctionalDependency> invalidFDs) {
+		Collections.sort(invalidFDs);
+		List<BitSet[]> invalidLhss = new ArrayList<>();
+		IntList invalidRhss = new IntArrayList();
+		int i = 0;
+		while (i < invalidFDs.size()) {
+			int j = i + 1;
+			while ((j < invalidFDs.size()) && (invalidFDs.get(j).getRhs() == invalidFDs.get(i).getRhs()))
+				j++;
+			
+			BitSet[] currentLhss = new BitSet[j - i];
+			for (int k = 0, l = i; l < j; k++, l++)
+				currentLhss[k] = invalidFDs.get(l).getLhs();
+			
+			invalidLhss.add(currentLhss);
+			invalidRhss.add(invalidFDs.get(i).getRhs());
+			
+			i = j;
+		}
+		return new ValidationResultMessage(
+				invalidLhss.toArray(new BitSet[invalidFDs.size()][]), 
+				invalidRhss.toArray(new int[invalidFDs.size()]));
 	}
 }

@@ -2,6 +2,8 @@ package de.hpi.octopus.actors;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import akka.actor.AbstractLoggingActor;
@@ -16,6 +18,7 @@ import akka.cluster.MemberStatus;
 import de.hpi.octopus.OctopusMaster;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.slaves.Validator;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -112,13 +115,13 @@ public class Storekeeper extends AbstractLoggingActor {
 		// Generate and store pli-records
 		this.records = new int[message.getNumRecords()][];
 		for (int r = 0; r < message.getNumRecords(); r++) {
-			this.records[r] = new int[message.getPlis().length];
-			for (int a = 0; a < message.getPlis().length; a++) {
+			this.records[r] = new int[this.plis.length];
+			for (int a = 0; a < this.plis.length; a++) {
 				this.records[r][a] = -1;
 			}
 		}
-		for (int attr = 0; attr < message.getPlis().length; attr++) {
-			int[][] pli = message.getPlis()[attr];
+		for (int attr = 0; attr < this.plis.length; attr++) {
+			int[][] pli = this.plis[attr];
 			for (int val = 0; val < pli.length; val++) {
 				for (int rec : pli[val]) {
 					this.records[rec][attr] = val;
@@ -126,6 +129,61 @@ public class Storekeeper extends AbstractLoggingActor {
 			}
 		}
 		this.log().info("Done creating pli records");
+
+		// Sort the records in all pli-clusters such that similar records are closer and the ordering of records differs in different plis
+		for (int attr = 0; attr < this.plis.length; attr++) {
+			int[][] pli = this.plis[attr];
+			
+			for (int i = 0; i < pli.length; i++) {
+				int[] cluster = pli[i];
+				
+				final int attribute = attr;
+				Comparator<Integer> comparator;
+				if (attr == 0) {
+					comparator = new Comparator<Integer>() {
+						@Override
+						public int compare(Integer record1, Integer record2) {
+							int compare = records[record1][attribute + 1] - records[record1][attribute + 1];
+					    	
+					    	if (compare == 0)
+					    		compare = records[record1][plis.length - 1] - records[record1][pli.length - 1];
+					    	
+					        return compare;
+						}
+					};
+				}
+				else if (attr == this.plis.length - 1) {
+					comparator = new Comparator<Integer>() {
+						@Override
+						public int compare(Integer record1, Integer record2) {
+							int compare = records[record1][0] - records[record1][0];
+					    	
+					    	if (compare == 0)
+					    		compare = records[record1][attribute - 1] - records[record1][attribute - 1];
+					    	
+					        return compare;
+						}
+					};
+				}
+				else {
+					comparator = new Comparator<Integer>() {
+						@Override
+					    public int compare(Integer record1, Integer record2) {
+					    	int compare = records[record1][attribute + 1] - records[record1][attribute + 1];
+					    	
+					    	if (compare == 0)
+					    		compare = records[record1][attribute - 1] - records[record1][attribute - 1];
+					    	
+					        return compare;
+					    }
+					};
+				}
+				IntArrayList sortedCluster = new IntArrayList(cluster);
+				Collections.sort(sortedCluster, comparator);
+				pli[i] = sortedCluster.elements();
+			}
+		}
+		this.log().info("Done sorting pli-clusters");
 		
 		// Send the data to all validators waiting for it
 		for (ActorRef validator : this.waitingValidators)

@@ -126,10 +126,18 @@ public class Profiler extends AbstractMaster {
 	}
 
 	protected void handle(DiscoveryTaskMessage message) throws Exception {
+		// Handle edge cases
 		if (this.plis != null) {
 			this.log().error("Can process only one task! Dropping profiling request for {} plis.", message.getPlis().length);
 			return;
 		}
+		
+		if (this.plis.length <= 1) {
+			this.log().error("Found {} attributes in the input and stopped processing, because at least 2 attributes are needed to make FDs possible.", message.getPlis().length);
+			return;
+		}
+		
+		// TODO: we could check the special cases of {}->A for all attributes A here by testing if this.plis[A][0].length == this.numRecords 
 		
 		// Initialize local fields with the given task
 		this.plis = message.getPlis();
@@ -173,9 +181,6 @@ public class Profiler extends AbstractMaster {
 		
 		
 		
-		
-		
-		
 		// Unsort the plis (i.e. attributes) into their original order
 		int[] sortedIndex2schemaIndex = new int[this.plis.length];
 		for (int i = 0; i < this.plis.length; i++)
@@ -192,7 +197,7 @@ public class Profiler extends AbstractMaster {
 			BitSet[] lhss = message.getInvalidLhss()[i];
 			this.dependencyStewards[rhs].tell(new DependencySteward.InvalidFDsMessage(lhss), this.self());
 		}
-				
+		
 		// Find new work for the worker
 		ActorRef worker = this.sender();
 		ValidationMessage work = this.busyValidators.remove(worker);

@@ -13,8 +13,8 @@ public class FDTree extends FDTreeElement {
 	protected int depth;
 	protected int numAttributes;
 	
-	protected FDTreeElement first;
-	protected FDTreeElement last;
+	protected FDTreeLeaf first;
+	protected FDTreeLeaf last;
 	
 	public FDTree(int numAttributes) {
 		this.depth = 1;
@@ -70,7 +70,7 @@ public class FDTree extends FDTreeElement {
 		}
 		
 		// Remove the leaf element from the linked list of unannounced leaf elements
-		FDTreeElement leaf = lhsElements[lhsCardinality];
+		FDTreeLeaf leaf = (FDTreeLeaf) lhsElements[lhsCardinality];
 		if (this.first == leaf)
 			this.first = leaf.getNext();
 		if (this.last == leaf)
@@ -90,32 +90,29 @@ public class FDTree extends FDTreeElement {
 
 	public void addLhs(BitSet lhs) {
 		// Add the elements for the lhs
-		int lhsSize = 0;
 		FDTreeElement element = this;
-		for (int attribute = lhs.nextSetBit(0); attribute >= 0; attribute = lhs.nextSetBit(attribute)) {
-			if (element.getChildren() == null)
-				element.setChildren(new FDTreeElement[this.numAttributes]);
-			
-			if (element.getChildren()[attribute] == null)
-				element.getChildren()[attribute] = new FDTreeElement();
+		int lhsSize = 0;
+		int attribute = lhs.nextSetBit(0);
+		for (int child = lhs.nextSetBit(attribute); child >= 0; child = lhs.nextSetBit(child)) {
+			element.addChild(this.numAttributes, attribute, new FDTreeElement());
 			
 			element = element.getChildren()[attribute];
 			lhsSize++;
+			attribute = child;
 		}
 		
-		// Make the last element an FD
-		element.makeLeaf(lhs, null, null);
+		// Add the last element as a leaf that indicates an FD
+		element.addChild(this.numAttributes, attribute, new FDTreeLeaf(lhs, null, this.last));
+		
+		FDTreeLeaf leaf = (FDTreeLeaf) element.getChildren()[attribute];
 		
 		// Add the last element to the linked list of unannounced leaf elements
-		if (this.first == null) {
-			this.first = element;
-			this.last = element;
-		}
-		else {
-			element.setPrevious(this.last);
-			this.last.setNext(element);
-			this.last = element;
-		}
+		if (this.first == null)
+			this.first = leaf;
+		else
+			this.last.setNext(leaf);
+			
+		this.last = leaf;
 		
 		// Adjust the depth of this tree
 		this.depth = Math.max(this.depth, lhsSize);
