@@ -12,6 +12,7 @@ import akka.actor.ActorRef;
 import akka.actor.Props;
 import de.hpi.octopus.actors.Storekeeper;
 import de.hpi.octopus.actors.masters.Profiler;
+import de.hpi.octopus.actors.masters.Profiler.SamplingResultMessage;
 import de.hpi.octopus.actors.masters.Profiler.ValidationResultMessage;
 import de.hpi.octopus.structures.FunctionalDependency;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
@@ -136,17 +137,20 @@ public class Validator extends AbstractSlave {
 		
 		// Match all records with their "distance" neighbor w.r.t. the pli of the given "attribute"
 		BitSet match = new BitSet(this.plis.length);
+		int numComparisons = 0;
 		for (int[] cluster : this.plis[message.getAttribute()]) {
 			for (int record = 0; record < cluster.length - message.getDistance(); record++) {
 				for (int attribute = 0; attribute < this.plis.length; attribute++)
 					if (isEqual(this.records[record][attribute], this.records[record + message.getDistance()][attribute]))
 						match.set(attribute);
+				numComparisons++;
 				
 				if (!matches.contains(match))
 					matches.add((BitSet) match.clone());
 				matches.clear();
 			}
 		}
+		int numMatches = matches.size();
 		
 		// Convert matches into invalid FDs
 		List<FunctionalDependency> invalidFDs = new ArrayList<>(matches.size() * this.plis.length / 2);
@@ -160,7 +164,9 @@ public class Validator extends AbstractSlave {
 		matches = null;
 		
 		// Send the result to the sender of the sampling message
-		sender.tell(toValidationResultMessage(invalidFDs), this.self());
+		ValidationResultMessage validationResult = toValidationResultMessage(invalidFDs);
+		SamplingResultMessage samplingResult = new SamplingResultMessage(validationResult.getInvalidLhss(), validationResult.getInvalidRhss(), numComparisons, numMatches);
+		sender.tell(samplingResult, this.self());
 	}
 	
 	private void handle(ValidationMessage message) {

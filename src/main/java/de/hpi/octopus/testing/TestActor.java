@@ -1,4 +1,4 @@
-package de.hpi.octopus;
+package de.hpi.octopus.testing;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -7,10 +7,10 @@ import java.util.List;
 import akka.actor.AbstractLoggingActor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
-import de.hpi.octopus.actors.InputReader.ReadMessage;
-import de.hpi.octopus.actors.InputReader.RestartMessage;
+import de.hpi.octopus.actors.DatasetReader.ReadMessage;
+import de.hpi.octopus.actors.DatasetReader.RestartMessage;
 import de.hpi.octopus.actors.masters.Preprocessor;
-import de.hpi.octopus.structures.Input;
+import de.hpi.octopus.structures.DatasetDescriptor;
 import de.metanome.algorithm_integration.configuration.ConfigurationSettingFileInput;
 import de.metanome.algorithm_integration.input.RelationalInput;
 import de.metanome.algorithm_integration.input.RelationalInputGenerator;
@@ -64,7 +64,7 @@ public class TestActor extends AbstractLoggingActor {
 	public Receive createReceive() {
 		return receiveBuilder()
 				.match(TestMessage.class, this::handle)
-				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
+				//.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
 				.build();
 	}
 

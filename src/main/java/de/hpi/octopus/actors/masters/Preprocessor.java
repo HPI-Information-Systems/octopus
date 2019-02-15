@@ -11,9 +11,9 @@ import akka.actor.ActorRef;
 import akka.actor.PoisonPill;
 import akka.actor.Props;
 import akka.actor.Terminated;
-import de.hpi.octopus.actors.InputReader;
+import de.hpi.octopus.actors.DatasetReader;
 import de.hpi.octopus.actors.slaves.Indexer;
-import de.hpi.octopus.structures.Input;
+import de.hpi.octopus.structures.DatasetDescriptor;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap.Entry;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
@@ -40,7 +40,7 @@ public class Preprocessor extends AbstractMaster {
 	public static class PreprocessingTaskMessage implements Serializable {
 		private static final long serialVersionUID = -4788853430111845038L;
 		private PreprocessingTaskMessage() {}
-		private Input input;
+		private DatasetDescriptor input;
 	}
 	
 	@Data @AllArgsConstructor @SuppressWarnings("unused")
@@ -87,7 +87,7 @@ public class Preprocessor extends AbstractMaster {
 	
 	private int watermark = 0;
 	
-	private ActorRef inputReader;
+	private ActorRef datasetReader;
 
 	private List<List<String>> waitingBatch = null;
 	private List<ActorRef> idleIndexers = new ArrayList<ActorRef>();
@@ -143,7 +143,7 @@ public class Preprocessor extends AbstractMaster {
 		
 		// If the sender was tasked with an attribute, restart the indexing because the sender's part is inevitably lost
 		if (this.attribute2indexer.values().contains(message.getActor())) {
-			this.inputReader.tell(new InputReader.RestartMessage(this.watermark), this.self());
+			this.datasetReader.tell(new DatasetReader.RestartMessage(this.watermark), this.self());
 			
 			this.watermark++;
 			
@@ -157,14 +157,14 @@ public class Preprocessor extends AbstractMaster {
 	}
 	
 	private void handle(PreprocessingTaskMessage message) throws Exception {
-		if (this.inputReader != null) {
+		if (this.datasetReader != null) {
 			this.log().error("Can process only one task! Dropping preprocessing request for " + message.getInput());
 			return;
 		}
 		
-		this.inputReader = this.context().actorOf(InputReader.props(message.getInput()), InputReader.DEFAULT_NAME);
+		this.datasetReader = this.context().actorOf(DatasetReader.props(message.getInput()), DatasetReader.DEFAULT_NAME);
 
-		this.inputReader.tell(new InputReader.ReadMessage(this.watermark), this.self());
+		this.datasetReader.tell(new DatasetReader.ReadMessage(this.watermark), this.self());
 	}
 
 	private void handle(BatchMessage message) {
@@ -246,7 +246,7 @@ public class Preprocessor extends AbstractMaster {
 			return;
 		}
 		
-		this.inputReader.tell(new InputReader.ReadMessage(this.watermark), this.self());
+		this.datasetReader.tell(new DatasetReader.ReadMessage(this.watermark), this.self());
 	}
 
 	private void reallocateAttributes() {
@@ -305,7 +305,7 @@ public class Preprocessor extends AbstractMaster {
 		
 		// Terminate the preprocessing hierarchy
 		this.self().tell(PoisonPill.getInstance(), this.self());
-		this.inputReader.tell(PoisonPill.getInstance(), ActorRef.noSender());
+		this.datasetReader.tell(PoisonPill.getInstance(), ActorRef.noSender());
 		this.indexers.forEach(indexer -> indexer.tell(PoisonPill.getInstance(), ActorRef.noSender()));
 	}
 }

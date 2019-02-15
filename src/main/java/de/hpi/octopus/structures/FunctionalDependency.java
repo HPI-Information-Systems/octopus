@@ -13,6 +13,9 @@ public class FunctionalDependency implements Comparable<FunctionalDependency> {
 	
 	@Override
 	public int compareTo(FunctionalDependency other) {
-		return this.rhs - other.getRhs();
+		int compare = this.rhs - other.getRhs();
+		if (compare == 0)
+			compare = other.getLhs().length() - this.lhs.length(); // Sort descendingly by lhs length to work on large lhss first; that is more efficient when updating the positive cover!
+		return compare;
 	}
 }

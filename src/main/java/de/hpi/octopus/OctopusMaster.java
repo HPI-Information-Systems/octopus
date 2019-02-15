@@ -13,7 +13,7 @@ import de.hpi.octopus.actors.masters.Preprocessor;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.slaves.Indexer;
 import de.hpi.octopus.actors.slaves.Validator;
-import de.hpi.octopus.structures.Input;
+import de.hpi.octopus.structures.DatasetDescriptor;
 
 public class OctopusMaster extends OctopusSystem {
 	
@@ -43,8 +43,8 @@ public class OctopusMaster extends OctopusSystem {
 				for (int i = 0; i < workers; i++)
 					system.actorOf(Validator.props(storekeeper), Validator.DEFAULT_NAME + i);
 				
-				
 			//	ActorRef testActor1 = system.actorOf(TestActor.props(null), TestActor.DEFAULT_NAME + 1);
+			//	testActor1.tell("hi", ActorRef.noSender());
 			//	ActorRef testActor2 = system.actorOf(TestActor.props(testActor1), TestActor.DEFAULT_NAME + 2);
 			//	int[] data = {1,2,3};
 			//	testActor2.tell(new TestActor.TestMessage(data), ActorRef.noSender());
@@ -63,11 +63,11 @@ public class OctopusMaster extends OctopusSystem {
 		String line = scanner.nextLine();
 		System.out.println(line);
 		
-		Input input = new Input(
+		DatasetDescriptor dataset = new DatasetDescriptor(
 				"ncvoter_Statewide_1024001r_71c", "/home/thorsten/Data/Development/workspace/papenbrock/HyFDTestRunner/data/", ".csv",
 				true, StandardCharsets.UTF_8, ',', '"', '\\', "", false, true, 100, 0, true);
 		
-		system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new Preprocessor.PreprocessingTaskMessage(input), ActorRef.noSender());
+		system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new Preprocessor.PreprocessingTaskMessage(dataset), ActorRef.noSender());
 		
 		//system.actorSelection("/user/" + Profiler.DEFAULT_NAME).tell(new Profiler.DiscoveryTaskMessage(attributes, null, null), ActorRef.noSender());
 		
@@ -75,6 +75,6 @@ public class OctopusMaster extends OctopusSystem {
 		System.out.println(line);
 		scanner.close();
 		
-		system.terminate();
+		//system.terminate();
 	}
 }

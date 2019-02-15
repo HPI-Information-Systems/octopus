@@ -2,20 +2,25 @@ package de.hpi.octopus.actors.masters;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Queue;
 
 import akka.actor.ActorRef;
 import akka.actor.Props;
 import akka.actor.Terminated;
 import de.hpi.octopus.actors.DependencySteward;
-import de.hpi.octopus.actors.Storekeeper;
-import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
+import de.hpi.octopus.actors.DependencySteward.CandidateRequestMessage;
+import de.hpi.octopus.actors.DependencySteward.InvalidFDsMessage;
+import de.hpi.octopus.actors.slaves.Validator;
+import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
+import de.hpi.octopus.structures.Dataset;
+import de.hpi.octopus.structures.DependencyStewardRing;
+import de.hpi.octopus.structures.SamplingEfficiency;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -65,23 +70,43 @@ public class Profiler extends AbstractMaster {
 		private int[] invalidRhss;
 	}
 
+	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	public static class SamplingResultMessage implements Serializable {
+		private static final long serialVersionUID = -6823011111281387872L;
+		private SamplingResultMessage() {}
+		private BitSet[][] invalidLhss;
+		private int[] invalidRhss;
+		private int comparisons;
+		private int matches;
+	}
+	
+	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	public static class FDsUpdatedMessage implements Serializable {
+		private static final long serialVersionUID = 1182835629941183917L;
+		private FDsUpdatedMessage() {}
+		private int rhs;
+		private boolean updatePreference;
+		private boolean validation;
+	}
+	
 	/////////////////
 	// Actor State //
 	/////////////////
 
-	private int[][][] plis;
-	private int numRecords;
-	private String[] schema;
-	
-	private Queue<ValidationMessage> unassignedWork = new LinkedList<>();
-	private Queue<ActorRef> idleValidators = new LinkedList<>();
-	private Map<ActorRef, ValidationMessage> busyValidators = new HashMap<>();
-	
-	private List<ActorRef> validators = new ArrayList<>();
+	private Dataset dataset;
 
-	private ActorRef[] dependencyStewards;
+	private List<ActorRef> validators = new ArrayList<>();
+	private Queue<ActorRef> idleValidators = new LinkedList<>();	// Idle: This validation branch is stopped here and pauses until a dependency steward becomes idle again.
+	private Queue<ActorRef> waitingValidators = new LinkedList<>();	// Waiting: This validation branch is collecting candidates and waits for them to come.
+	private Map<ActorRef, Object> busyValidators = new HashMap<>();	// Busy: This validation branch is working on a message.
 	
-	private DiscoveryTaskMessage task;
+	private ActorRef[] dependencyStewards;
+	private DependencyStewardRing dependencyStewardRing;
+	
+	private SamplingEfficiency[] samplingEfficiencies;
+	private PriorityQueue<SamplingEfficiency> prioritizedSamplingEfficiencies;
+
+	private Queue<Object> unassignedWork = new LinkedList<>();
 
 	/////////////////////
 	// Actor Lifecycle //
@@ -98,6 +123,8 @@ public class Profiler extends AbstractMaster {
 				.match(SendPlisMessage.class, this::handle)
 				.match(CandidateMessage.class, this::handle)
 				.match(ValidationResultMessage.class, this::handle)
+				.match(SamplingResultMessage.class, this::handle)
+				.match(FDsUpdatedMessage.class, this::handle)
 				.build()
 				.orElse(super.createReceive());
 	}
@@ -117,159 +144,218 @@ public class Profiler extends AbstractMaster {
 		
 		this.validators.remove(message.getActor());
 		
-		if (!this.idleValidators.remove(message.getActor())) {
-			ValidationMessage work = this.busyValidators.remove(message.getActor());
-			if (work != null) {
-				this.assign(work);
+		this.idleValidators.remove(message.getActor());
+		this.waitingValidators.remove(message.getActor());
+		Object work = this.busyValidators.remove(message.getActor());
+		if (work != null) {
+			if (this.idleValidators.isEmpty()) {
+				this.unassignedWork.add(work);
+				return;
 			}
+			
+			ActorRef validator = this.idleValidators.poll();
+			this.busyValidators.put(validator, work);
+			validator.tell(work, this.self());
 		}
 	}
 
 	protected void handle(DiscoveryTaskMessage message) throws Exception {
 		// Handle edge cases
-		if (this.plis != null) {
+		if (this.dataset != null) {
 			this.log().error("Can process only one task! Dropping profiling request for {} plis.", message.getPlis().length);
 			return;
 		}
-		
-		if (this.plis.length <= 1) {
+		if (message.getPlis().length <= 1) {
 			this.log().error("Found {} attributes in the input and stopped processing, because at least 2 attributes are needed to make FDs possible.", message.getPlis().length);
 			return;
 		}
 		
-		// TODO: we could check the special cases of {}->A for all attributes A here by testing if this.plis[A][0].length == this.numRecords 
+		// TODO: we could check the special cases of {}->A for all attributes A here by testing if this.plis[A][0].length == this.numRecords or we keep ignoring all {}->A and consider B->A, C->A, D->A etc. as smallest FDs
 		
-		// Initialize local fields with the given task
-		this.plis = message.getPlis();
-		this.numRecords = message.getNumRecords();
-		this.schema = message.getSchema();
-		
-		int numAttributes = this.plis.length;
-		
-		// Sort the plis (i.e. attributes) by their number of clusters: For searching in the covers and for validation, it is good to have attributes with few non-unique values and many clusters left in the prefix tree
-		@Data @AllArgsConstructor
-		final class Attribute implements Comparable<Attribute> {
-			private int schemaIndex;
-			private int numClusters;
-			@Override
-			public int compareTo(Attribute other) {
-				return other.getNumClusters() - this.getNumClusters();
-			}
-		}
-		Attribute[] attributes = new Attribute[numAttributes];
-		for (int i = 0; i < numAttributes; i++) {
-			int numNonUniqueValues = Arrays.stream(this.plis[i]).map(cluster -> cluster.length).reduce((a,b) -> a + b).get().intValue();
-			int numStrippedClusters = this.plis[i].length;
-			attributes[i] = new Attribute(i, this.numRecords - numNonUniqueValues + numStrippedClusters);
-		}
-		Arrays.sort(attributes);
-		int[][][] sortedPlis = new int[numAttributes][][];
-		for (int i = 0; i < numAttributes; i++)
-			sortedPlis[i] = this.plis[attributes[i].getSchemaIndex()];
-		this.plis = sortedPlis;
-		
-		for (Attribute attribute : attributes)
-			System.out.println(attribute.getSchemaIndex() + "  " + attribute.getNumClusters() + "   " + this.schema[attribute.getSchemaIndex()]);
+		// Initialize local dataset with the given task; this also sorts the attributes by the number of their pli clusters
+		this.dataset = new Dataset(message, this.log());
 		
 		// Start one dependency steward for each attribute
+		int numAttributes = this.dataset.getNumAtrributes();
 		this.dependencyStewards = new ActorRef[numAttributes];
-		for (int i = 0; i < numAttributes; i++)
+		this.samplingEfficiencies = new SamplingEfficiency[numAttributes];
+		this.prioritizedSamplingEfficiencies = new PriorityQueue<SamplingEfficiency>(numAttributes);
+		for (int i = 0; i < numAttributes; i++) {
 			this.dependencyStewards[i] = this.context().actorOf(
 					DependencySteward.props(i, numAttributes, -1), 
-					DependencySteward.DEFAULT_NAME); // TODO: the maxDepth i.e. max FD size should be a parameter
+					DependencySteward.DEFAULT_NAME + i); // TODO: the maxDepth i.e. max FD size should be a parameter
+			
+			SamplingEfficiency samplingEfficiency = new SamplingEfficiency(i);
+			this.samplingEfficiencies[i] = samplingEfficiency;
+			this.prioritizedSamplingEfficiencies.add(samplingEfficiency);
+		}
+		this.dependencyStewardRing = new DependencyStewardRing(this.dependencyStewards);
 		
-		
-		
-		
-		// Unsort the plis (i.e. attributes) into their original order
-		int[] sortedIndex2schemaIndex = new int[this.plis.length];
-		for (int i = 0; i < this.plis.length; i++)
-			sortedIndex2schemaIndex[i] = attributes[i].getSchemaIndex();
-		
-		// TODO Re-substitute attribute indexes: for(fd : fds) for(attribute : fd) attribute = sortedIndex2schemaIndex[attribute];
-		// TODO Report FDs
+		// Assign initial work to all validators
+		for (ActorRef validator : this.validators)
+			this.assign(validator);
 	}
 	
-	protected void handle(ValidationResultMessage message) {
+	protected void handle(ValidationResultMessage validationResultMessage) {
+		ActorRef validator = this.sender();
+		Validator.ValidationMessage validationMessage = (Validator.ValidationMessage) this.busyValidators.remove(validator);
+		
+		int validationRequester = validationMessage.getRhs(); // Who asked for this validation
+		
 		// Forward the validation results to the different dependency stewards
-		for (int i = 0; i < message.getInvalidRhss().length; i++) {
-			int rhs = message.getInvalidRhss()[i];
-			BitSet[] lhss = message.getInvalidLhss()[i];
-			this.dependencyStewards[rhs].tell(new DependencySteward.InvalidFDsMessage(lhss), this.self());
+		for (int i = 0; i < validationResultMessage.getInvalidRhss().length; i++) {
+			int rhs = validationResultMessage.getInvalidRhss()[i];
+			BitSet[] lhss = validationResultMessage.getInvalidLhss()[i];
+			
+			this.dependencyStewardRing.setBusy(rhs, true);
+			if (rhs == validationRequester) {
+				double validationEfficiency = (double) (validationMessage.getLhss().length - lhss.length) / (double) validationMessage.getLhss().length;
+				this.dependencyStewards[rhs].tell(new InvalidFDsMessage(lhss, true, true, validationEfficiency), this.self());
+			}
+			else {
+				this.dependencyStewards[rhs].tell(new InvalidFDsMessage(lhss, true, false, 0), this.self());
+			}
 		}
 		
-		// Find new work for the worker
-		ActorRef worker = this.sender();
-		ValidationMessage work = this.busyValidators.remove(worker);
-		this.idleValidators.add(worker);
+		// Assign new work to the validator
+		this.assign(validator);
+	}
+	
+	protected void handle(SamplingResultMessage samplingResultMessage) {
+		ActorRef validator = this.sender();
+		SamplingMessage samplingMessage = (SamplingMessage) this.busyValidators.remove(validator);
 		
+		// Update the sampling efficiency for the target attribute
+		int attribute = samplingMessage.getAttribute();
+		int distance = samplingMessage.getDistance();
+		int comparisons = samplingResultMessage.getComparisons();
+		int matches = samplingResultMessage.getMatches();
 		
-		// TODO
+		SamplingEfficiency samplingEfficiency = this.samplingEfficiencies[attribute];
+		this.prioritizedSamplingEfficiencies.remove(samplingEfficiency);
+		samplingEfficiency.update(comparisons, matches, distance);
+		this.prioritizedSamplingEfficiencies.add(samplingEfficiency);
+
+		// Forward the sampling results to the different dependency stewards
+		for (int i = 0; i < samplingResultMessage.getInvalidRhss().length; i++) {
+			int rhs = samplingResultMessage.getInvalidRhss()[i];
+			BitSet[] lhss = samplingResultMessage.getInvalidLhss()[i];
+			this.dependencyStewardRing.setBusy(rhs, true);
+			this.dependencyStewards[rhs].tell(new InvalidFDsMessage(lhss, false, true, samplingEfficiency.getEfficiency()), this.self());
+		}
 		
+		// Assign new work to the validator
+		this.assign(validator);
+	}
+	
+	protected void handle(FDsUpdatedMessage message) {
+		// The dependency steward is now idle
+		this.dependencyStewardRing.setBusy(message.getRhs(), false);
 		
+		// If the dependency steward changed its preferences, we have to update them
+		if (message.isUpdatePreference())
+			this.dependencyStewardRing.setValidation(message.getRhs(), message.isValidation());
 		
-		if (this.unassignedWork.isEmpty() && this.busyValidators.isEmpty()) {
-			this.finish();
-			this.task = null;
-		} else {
-			this.assign(worker);
+		// If idle validators exist, we can now assign work from this idle dependency steward to one of them
+		if (!this.idleValidators.isEmpty()) {
+			ActorRef validator = this.idleValidators.poll();
+			this.assign(validator);
 		}
 	}
 	
 	private void handle(SendPlisMessage mesage) {
-		this.sender().tell(new Storekeeper.PlisMessage(this.plis, this.numRecords), this.self());
+		this.sender().tell(this.dataset.toPlisMessage(), this.self());
 	}
 	
 	private void handle(CandidateMessage message) {
-		// Assign candidates to some free validator
-		// Track candidates and re-assign them, if the validator dies
+		// The dependency steward is now idle
+		this.dependencyStewardRing.setBusy(message.getRhs(), false);
 		
-		// An rhs attribute has been fully processed if its dependencySteward returned no new candidates AND no validator is working on candidates from that attribute
-		
-		// TODO	
-	}
-	
-	
-	protected void assign(ValidationMessage work) {
-		ActorRef worker = this.idleValidators.poll();
-		
-		if (worker == null) {
-			this.unassignedWork.add(work);
+		// Construct the validation message
+		Validator.ValidationMessage validationMessage = new Validator.ValidationMessage(message.getLhss(), message.getRhs());
+		if (this.waitingValidators.isEmpty()) { // The validator terminated while the dependency steward was collecting candidates
+			this.unassignedWork.add(validationMessage);
 			return;
 		}
 		
-		this.busyValidators.put(worker, work);
-		worker.tell(work, this.self());
-	}
-	
-	protected void assign(ActorRef worker) {
-		ValidationMessage work = this.unassignedWork.poll();
+		// Assign the candidates to some a waiting validator
+		ActorRef validator = this.waitingValidators.poll();
+		this.busyValidators.put(validator, validationMessage);
+		validator.tell(validationMessage, this.self());
 		
-		if (work == null) {
-			this.idleValidators.add(worker);
-			return;
-		}
-		
-		this.busyValidators.put(worker, work);
-		worker.tell(work, this.self());
-	}
-	
-	protected List<ValidationMessage> split(DiscoveryTaskMessage message) throws Exception {
-		return Arrays.asList(new ValidationMessage(new int[0], new int[0]));
+		// TODO: Implement finalize: An rhs attribute has been fully processed if its dependencySteward returned no new candidates AND no validator is working on candidates from that attribute
 	}
 
+	private void assign(ActorRef validator) {
+		// Let the validator idle if no discovery task is present yet
+		if (this.dataset == null) {
+			this.idleValidators.add(validator);
+			return;
+		}
+		
+		// Assign work that is waiting for a worker
+		Object work = this.unassignedWork.poll();
+		if (work != null) {
+			validator.tell(work, this.self());
+			this.busyValidators.put(validator, work);
+			return;
+		}
+		
+		// Assign sampling tasks for attributes that have not yet been used for sampling
+		if (!this.prioritizedSamplingEfficiencies.peek().hasStepped()) {
+			SamplingEfficiency samplingEfficiency = this.prioritizedSamplingEfficiencies.poll();
+			int distance = samplingEfficiency.step();
+			this.prioritizedSamplingEfficiencies.add(samplingEfficiency);
+			
+			SamplingMessage samplingMessage = new SamplingMessage(samplingEfficiency.getAttribute(), distance);
+			validator.tell(samplingMessage, this.self());
+			this.busyValidators.put(validator, samplingMessage);
+			return;
+		}
+		
+		// Try to assign a validation task
+		int attribute = this.dependencyStewardRing.nextIdleWithValidationPreference();
+		if (attribute >= 0) {
+			this.dependencyStewardRing.setBusy(attribute, true);
+			this.dependencyStewards[attribute].tell(new CandidateRequestMessage(), this.self());
+			
+			this.waitingValidators.add(validator);
+			return;
+		}
+		
+		// Try to assign a sampling task
+		attribute = this.dependencyStewardRing.nextIdleWithSamplingPreference();
+		if (attribute >= 0) {
+			SamplingEfficiency samplingEfficiency = this.prioritizedSamplingEfficiencies.poll();
+			int distance = samplingEfficiency.step();
+			this.prioritizedSamplingEfficiencies.add(samplingEfficiency);
+			
+			this.dependencyStewardRing.setValidation(attribute, true); // We fulfilled the sampling wish and set the preference to validation; otherwise we would sample forever, if the sampling does not discover any further nonFDs (which were needed to change the preference)
+			
+			SamplingMessage samplingMessage = new SamplingMessage(samplingEfficiency.getAttribute(), distance);
+			validator.tell(samplingMessage, this.self());
+			this.busyValidators.put(validator, samplingMessage);
+			return;
+		}
+		
+		// Let the validator idle if all dependency stewards are busy (i.e., we apply backpressure to not exhaust the profiler and its dependency stewards)
+		this.idleValidators.add(validator);
+	}
+	
 	protected void finish() {
-		DiscoveryTaskMessage discoveryDiscoveryTaskMessage = this.task;
+	//	DiscoveryTaskMessage discoveryDiscoveryTaskMessage = this.task;
+		
+		// TODO Re-substitute attribute indexes: for(fd : fds) for(attribute : fd) attribute = sortedIndex2schemaIndex[attribute];
+		// TODO: Unsort the attributes into their original order for all discovered FDs
+	//	for (fd : fds)
+	//		for (attribute : fd)
+	//			attribute = this.sortedIndex2schemaIndex[attribute]
+		
+		// TODO Report FDs
+		
 		
 		this.log().info("Finished discovery task.");
 				
 		// TODO Tell the Application that the discovery is done
 	}
-	
-	private void report(ValidationMessage work) {
-		this.log().info("UCC: {}", Arrays.toString(work.getX()));
-		
-		// TODO Write somewhere else or tell someone
-	}
-
 }

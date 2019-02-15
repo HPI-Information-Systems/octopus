@@ -7,7 +7,7 @@ import java.util.List;
 import akka.actor.AbstractLoggingActor;
 import akka.actor.Props;
 import de.hpi.octopus.actors.masters.Preprocessor;
-import de.hpi.octopus.structures.Input;
+import de.hpi.octopus.structures.DatasetDescriptor;
 import de.metanome.algorithm_integration.configuration.ConfigurationSettingFileInput;
 import de.metanome.algorithm_integration.input.RelationalInput;
 import de.metanome.algorithm_integration.input.RelationalInputGenerator;
@@ -15,7 +15,7 @@ import de.metanome.backend.input.file.DefaultFileInputGenerator;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-public class InputReader extends AbstractLoggingActor {
+public class DatasetReader extends AbstractLoggingActor {
 
 	////////////////////////
 	// Actor Construction //
@@ -23,12 +23,12 @@ public class InputReader extends AbstractLoggingActor {
 	
 	public static final String DEFAULT_NAME = "inputReader";
 
-	public static Props props(Input input) {
-		return Props.create(InputReader.class, () -> new InputReader(input));
+	public static Props props(DatasetDescriptor dataset) {
+		return Props.create(DatasetReader.class, () -> new DatasetReader(dataset));
 	}
 
-	public InputReader(Input input) {
-		this.input = input;
+	public DatasetReader(DatasetDescriptor dataset) {
+		this.dataset = dataset;
 	}
 
 	////////////////////
@@ -53,7 +53,7 @@ public class InputReader extends AbstractLoggingActor {
 	// Actor State //
 	/////////////////
 	
-	private Input input;
+	private DatasetDescriptor dataset;
 
 	private RelationalInputGenerator relationalInputGenerator;
 	private RelationalInput relationalInputReader;
@@ -68,9 +68,9 @@ public class InputReader extends AbstractLoggingActor {
 	@Override
 	public void preStart() throws Exception {
 		this.relationalInputGenerator = new DefaultFileInputGenerator(new ConfigurationSettingFileInput(
-				this.input.getDatasetPathNameEnding(), true, this.input.getAttributeSeparator(), this.input.getAttributeQuote(), 
-				this.input.getAttributeEscape(), this.input.isAttributeStrictQuotes(), this.input.isAttributeIgnoreLeadingWhitespace(), 
-				this.input.getReaderSkipLines(), this.input.isFileHasHeader(), this.input.isReaderSkipDifferingLines(), this.input.getAttributeNullString()));
+				this.dataset.getDatasetPathNameEnding(), true, this.dataset.getAttributeSeparator(), this.dataset.getAttributeQuote(), 
+				this.dataset.getAttributeEscape(), this.dataset.isAttributeStrictQuotes(), this.dataset.isAttributeIgnoreLeadingWhitespace(), 
+				this.dataset.getReaderSkipLines(), this.dataset.isFileHasHeader(), this.dataset.isReaderSkipDifferingLines(), this.dataset.getAttributeNullString()));
 		
 		this.relationalInputReader = this.relationalInputGenerator.generateNewCopy();
 		this.columnNames = this.relationalInputReader.columnNames().toArray(new String[0]);
@@ -122,9 +122,9 @@ public class InputReader extends AbstractLoggingActor {
 	}
 	
 	private void read() throws Exception {
-		this.buffer = new ArrayList<>(this.input.getReaderBufferSize());
+		this.buffer = new ArrayList<>(this.dataset.getReaderBufferSize());
 		
-		while (this.relationalInputReader.hasNext() && this.buffer.size() < this.input.getReaderBufferSize()) {
+		while (this.relationalInputReader.hasNext() && this.buffer.size() < this.dataset.getReaderBufferSize()) {
 			List<String> record = this.relationalInputReader.next();
 			
 			this.buffer.add(record);

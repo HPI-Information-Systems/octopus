@@ -9,7 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 
 @Data @AllArgsConstructor
-public class Input implements Serializable {
+public class DatasetDescriptor implements Serializable {
 	
 	private static final long serialVersionUID = 1985782678973727520L;
 	

@@ -2,9 +2,6 @@ package de.hpi.octopus.actors;
 
 import java.io.Serializable;
 import java.util.BitSet;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
 
 import akka.actor.AbstractLoggingActor;
 import akka.actor.Props;
@@ -43,6 +40,9 @@ public class DependencySteward extends AbstractLoggingActor {
 		private static final long serialVersionUID = -102767440935270949L;
 		private InvalidFDsMessage() {}
 		private BitSet[] invalidLhss;
+		private boolean validation;
+		private boolean own;
+		private double efficiency;
 	}
 	
 	@Data @AllArgsConstructor
@@ -58,6 +58,14 @@ public class DependencySteward extends AbstractLoggingActor {
 	private final FDTree fds;
 	
 	private int maxDepth;
+	
+	private double validationCalculationEfficiency = 0;
+	private double validationUpdateEfficiency = 0;
+	private double samplingCalculationEfficiency = 0;
+	private double samplingUpdateEfficiency = 0;
+	
+	private double validationThreshold = 0.9;
+	private double samplingThreshold = 0.01;
 	
 	/////////////////////
 	// Actor Lifecycle //
@@ -83,34 +91,65 @@ public class DependencySteward extends AbstractLoggingActor {
 	
 	protected void handle(InvalidFDsMessage message) {
 		int numAttributes = this.fds.getNumAttributes();
-		int changes = 0;
+		int numUpdates = 0;
 		
 		// Prune the candidate from the FDTree and infer new candidates
 		for (BitSet invalidLhs : message.getInvalidLhss()) {
 			for (BitSet specLhs : this.fds.getLhsAndGeneralizations(invalidLhs)) {
 				this.fds.removeLhs(specLhs);
+				numUpdates++;
 				
 				if ((this.maxDepth > 0) && (specLhs.cardinality() >= this.maxDepth))
 					continue;
 				
-				for (int attribute = numAttributes - 1; attribute >= 0; attribute--) { // TODO: Is iterating backwards a good or bad idea?
+				for (int attribute = numAttributes - 1; attribute >= 0; attribute--) {
 					if (invalidLhs.get(attribute) || (attribute == this.rhs))
 						continue;
 					
 					specLhs.set(attribute);
 					if (!this.fds.containsLhsOrGeneralization(specLhs)) {
 						this.fds.addLhs(specLhs);
-						changes++;
 						
 						// If dynamic memory management is enabled, frequently check the memory consumption and trim the positive cover if it does not fit anymore
-						this.memoryGuardian.memoryChanged(1);
-						this.memoryGuardian.match(this.negCover, this.posCover, invalidLhs);
+					//	this.memoryGuardian.memoryChanged(1);
+					//	this.memoryGuardian.match(this.negCover, this.posCover, invalidLhs); // TODO: Someone needs to supervise the overall memory consumption
 					}
 					specLhs.clear(attribute);
 				}
 			}
 		}
 		
-		return changes;
+		// Update efficiencies and preference if necessary
+		if (message.isOwn()) {
+			if (message.isValidation()) {
+				this.validationCalculationEfficiency = message.getEfficiency();
+				this.validationUpdateEfficiency = (double) numUpdates / (double) message.getInvalidLhss().length;
+			}
+			else {
+				this.samplingCalculationEfficiency = message.getEfficiency();
+				this.samplingUpdateEfficiency = (double) numUpdates / (double) message.getInvalidLhss().length;
+			}
+			boolean validation = this.calculatePreference();
+			this.sender().tell(new Profiler.FDsUpdatedMessage(this.rhs, true, validation), this.self());
+		}
+		else {
+			this.sender().tell(new Profiler.FDsUpdatedMessage(this.rhs, false, false), this.self());
+		}
+	}
+	
+	protected boolean calculatePreference() {
+		//this.validationCalculationEfficiency	// validFDs / validations
+		//this.validationUpdateEfficiency		// update / invalidFDs 			Usually 1 if no intermediate updates happened
+		//this.samplingCalculationEfficiency	// matches / comparisons
+		//this.samplingUpdateEfficiency			// updates / matches
+		
+		double validationEfficiency = this.validationCalculationEfficiency; // We ignore the update efficiency, because we cannot know the causes of the extra updates
+		double samplingEfficiency = this.samplingCalculationEfficiency * this.samplingUpdateEfficiency;
+		
+		if (validationEfficiency > this.validationThreshold)
+			return true;
+		
+	//	if (samplingEfficiency > this.samplingThreshold) // Easy sampling idea: If more than 10% candidates are invalid, ask for a sampling round; the profiler will switch the preference back to validation after that preference was served anyway; we then see if we are back into <10% non-FDs
+			return false;
 	}
 }
