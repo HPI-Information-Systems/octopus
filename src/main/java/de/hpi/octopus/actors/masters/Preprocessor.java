@@ -12,7 +12,12 @@ import akka.actor.PoisonPill;
 import akka.actor.Props;
 import akka.actor.Terminated;
 import de.hpi.octopus.actors.DatasetReader;
-import de.hpi.octopus.actors.slaves.Indexer;
+import de.hpi.octopus.actors.DatasetReader.ReadMessage;
+import de.hpi.octopus.actors.DatasetReader.RestartMessage;
+import de.hpi.octopus.actors.masters.Profiler.DiscoveryTaskMessage;
+import de.hpi.octopus.actors.slaves.Indexer.FinalizeMessage;
+import de.hpi.octopus.actors.slaves.Indexer.IndexingMessage;
+import de.hpi.octopus.actors.slaves.Indexer.SendAttributesMessage;
 import de.hpi.octopus.structures.DatasetDescriptor;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap.Entry;
@@ -88,6 +93,8 @@ public class Preprocessor extends AbstractMaster {
 	private int watermark = 0;
 	
 	private ActorRef datasetReader;
+	
+	private DatasetDescriptor datasetDescriptor;
 
 	private List<List<String>> waitingBatch = null;
 	private List<ActorRef> idleIndexers = new ArrayList<ActorRef>();
@@ -143,7 +150,7 @@ public class Preprocessor extends AbstractMaster {
 		
 		// If the sender was tasked with an attribute, restart the indexing because the sender's part is inevitably lost
 		if (this.attribute2indexer.values().contains(message.getActor())) {
-			this.datasetReader.tell(new DatasetReader.RestartMessage(this.watermark), this.self());
+			this.datasetReader.tell(new RestartMessage(this.watermark), this.self());
 			
 			this.watermark++;
 			
@@ -162,9 +169,11 @@ public class Preprocessor extends AbstractMaster {
 			return;
 		}
 		
+		this.datasetDescriptor = message.getInput();
+		
 		this.datasetReader = this.context().actorOf(DatasetReader.props(message.getInput()), DatasetReader.DEFAULT_NAME);
 
-		this.datasetReader.tell(new DatasetReader.ReadMessage(this.watermark), this.self());
+		this.datasetReader.tell(new ReadMessage(this.watermark), this.self());
 	}
 
 	private void handle(BatchMessage message) {
@@ -185,7 +194,7 @@ public class Preprocessor extends AbstractMaster {
 			}
 			
 			for (int attribute = 0; attribute < this.attribute2indexer.size(); attribute++)
-				this.attribute2indexer.get(attribute).tell(new Indexer.FinalizeMessage(attribute, this.watermark), this.self());
+				this.attribute2indexer.get(attribute).tell(new FinalizeMessage(attribute, this.watermark), this.self());
 			
 			this.pendingResponses = this.attribute2indexer.size();
 			return;
@@ -224,7 +233,7 @@ public class Preprocessor extends AbstractMaster {
 			for (List<String> record : batch) {
 				values[i] = record.get(attribute);
 			}
-			this.attribute2indexer.get(attribute).tell(new Indexer.IndexingMessage(attribute, values, this.watermark), this.self());
+			this.attribute2indexer.get(attribute).tell(new IndexingMessage(attribute, values, this.watermark), this.self());
 		}
 		this.pendingResponses = this.attribute2indexer.size();
 	}
@@ -246,7 +255,7 @@ public class Preprocessor extends AbstractMaster {
 			return;
 		}
 		
-		this.datasetReader.tell(new DatasetReader.ReadMessage(this.watermark), this.self());
+		this.datasetReader.tell(new ReadMessage(this.watermark), this.self());
 	}
 
 	private void reallocateAttributes() {
@@ -263,7 +272,7 @@ public class Preprocessor extends AbstractMaster {
 			ActorRef busyIndexer = entry.getKey();
 			int numSharableAttributes = entry.getIntValue() - numAttributesPerIndexer;
 			if (numSharableAttributes > 0) {
-				busyIndexer.tell(new Indexer.SendAttributesMessage(numSharableAttributes, idleIndexer, this.watermark), this.self());
+				busyIndexer.tell(new SendAttributesMessage(numSharableAttributes, idleIndexer, this.watermark), this.self());
 				this.pendingResponses++;
 			}
 			
@@ -301,7 +310,7 @@ public class Preprocessor extends AbstractMaster {
 	
 	private void endPreprocessing() {
 		// Report resulting plis
-		this.context().actorSelection("/user/" + Profiler.DEFAULT_NAME).tell(new Profiler.DiscoveryTaskMessage(this.plis, this.numRecords, this.schema), this.self());
+		this.context().actorSelection("/user/" + Profiler.DEFAULT_NAME).tell(new DiscoveryTaskMessage(this.plis, this.numRecords, this.schema, this.datasetDescriptor.getDatasetName()), this.self());
 		
 		// Terminate the preprocessing hierarchy
 		this.self().tell(PoisonPill.getInstance(), this.self());

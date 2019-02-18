@@ -1,23 +1,25 @@
 package de.hpi.octopus.actors.masters;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Queue;
 
 import akka.actor.ActorRef;
+import akka.actor.PoisonPill;
 import akka.actor.Props;
 import akka.actor.Terminated;
 import de.hpi.octopus.actors.DependencySteward;
 import de.hpi.octopus.actors.DependencySteward.CandidateRequestMessage;
+import de.hpi.octopus.actors.DependencySteward.FinalizeMessage;
 import de.hpi.octopus.actors.DependencySteward.InvalidFDsMessage;
 import de.hpi.octopus.actors.slaves.Validator;
 import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
+import de.hpi.octopus.actors.slaves.Validator.TerminateMessage;
+import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
 import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.DependencyStewardRing;
 import de.hpi.octopus.structures.SamplingEfficiency;
@@ -47,6 +49,7 @@ public class Profiler extends AbstractMaster {
 		private int[][][] plis;
 		private int numRecords;
 		private String[] schema;
+		private String datasetName;
 	}
 
 	@Data @AllArgsConstructor
@@ -95,13 +98,12 @@ public class Profiler extends AbstractMaster {
 
 	private Dataset dataset;
 
-	private List<ActorRef> validators = new ArrayList<>();
 	private Queue<ActorRef> idleValidators = new LinkedList<>();	// Idle: This validation branch is stopped here and pauses until a dependency steward becomes idle again.
 	private Queue<ActorRef> waitingValidators = new LinkedList<>();	// Waiting: This validation branch is collecting candidates and waits for them to come.
 	private Map<ActorRef, Object> busyValidators = new HashMap<>();	// Busy: This validation branch is working on a message.
 	
-	private ActorRef[] dependencyStewards;
-	private DependencyStewardRing dependencyStewardRing;
+	private ActorRef[] dependencyStewards;							// List of non-finished dependency stewards
+	private DependencyStewardRing dependencyStewardRing;			// Ring of dependency stewards to find the next steward serving new validation tasks
 	
 	private SamplingEfficiency[] samplingEfficiencies;
 	private PriorityQueue<SamplingEfficiency> prioritizedSamplingEfficiencies;
@@ -133,16 +135,12 @@ public class Profiler extends AbstractMaster {
 	protected void handle(RegistrationMessage message) {
 		super.handle(message);
 		
-		this.validators.add(this.sender());
-		
 		this.assign(this.sender());
 	}
 	
 	@Override
 	protected void handle(Terminated message) {
 		super.handle(message);
-		
-		this.validators.remove(message.getActor());
 		
 		this.idleValidators.remove(message.getActor());
 		this.waitingValidators.remove(message.getActor());
@@ -189,11 +187,15 @@ public class Profiler extends AbstractMaster {
 			this.samplingEfficiencies[i] = samplingEfficiency;
 			this.prioritizedSamplingEfficiencies.add(samplingEfficiency);
 		}
-		this.dependencyStewardRing = new DependencyStewardRing(this.dependencyStewards);
+		this.dependencyStewardRing = new DependencyStewardRing(this.dependencyStewards.length);
 		
 		// Assign initial work to all validators
-		for (ActorRef validator : this.validators)
+		for (ActorRef validator : this.idleValidators)
 			this.assign(validator);
+	}
+
+	private void handle(SendPlisMessage mesage) {
+		this.sender().tell(this.dataset.toPlisMessage(), this.self());
 	}
 	
 	protected void handle(ValidationResultMessage validationResultMessage) {
@@ -206,8 +208,11 @@ public class Profiler extends AbstractMaster {
 		for (int i = 0; i < validationResultMessage.getInvalidRhss().length; i++) {
 			int rhs = validationResultMessage.getInvalidRhss()[i];
 			BitSet[] lhss = validationResultMessage.getInvalidLhss()[i];
+
+			if (this.dependencyStewards[rhs] == null) // If the steward is already done
+				continue;
 			
-			this.dependencyStewardRing.setBusy(rhs, true);
+			this.dependencyStewardRing.increaseBusy(rhs);
 			if (rhs == validationRequester) {
 				double validationEfficiency = (double) (validationMessage.getLhss().length - lhss.length) / (double) validationMessage.getLhss().length;
 				this.dependencyStewards[rhs].tell(new InvalidFDsMessage(lhss, true, true, validationEfficiency), this.self());
@@ -240,8 +245,12 @@ public class Profiler extends AbstractMaster {
 		for (int i = 0; i < samplingResultMessage.getInvalidRhss().length; i++) {
 			int rhs = samplingResultMessage.getInvalidRhss()[i];
 			BitSet[] lhss = samplingResultMessage.getInvalidLhss()[i];
-			this.dependencyStewardRing.setBusy(rhs, true);
-			this.dependencyStewards[rhs].tell(new InvalidFDsMessage(lhss, false, true, samplingEfficiency.getEfficiency()), this.self());
+			
+			if (this.dependencyStewards[rhs] == null) // If the steward is already done
+				continue;
+			
+			this.dependencyStewardRing.increaseBusy(rhs);
+			this.dependencyStewards[rhs].tell(new InvalidFDsMessage(lhss, false, true, samplingEfficiency.getEfficiency()), this.self()); // Any SamplingResultMessage is marked to trigger an efficiency update (not only the own sampling requests), because the optimal sampling attribute is chosen independently of the dependency steward's attribute anyway
 		}
 		
 		// Assign new work to the validator
@@ -249,43 +258,108 @@ public class Profiler extends AbstractMaster {
 	}
 	
 	protected void handle(FDsUpdatedMessage message) {
-		// The dependency steward is now idle
-		this.dependencyStewardRing.setBusy(message.getRhs(), false);
+		// The dependency steward is now one message less busy
+		this.dependencyStewardRing.decreaseBusy(message.getRhs());
 		
-		// If the dependency steward changed its preferences, we have to update them
+		// If the dependency steward updated its preference, the profiler has to update it, too
 		if (message.isUpdatePreference())
 			this.dependencyStewardRing.setValidation(message.getRhs(), message.isValidation());
 		
-		// If idle validators exist, we can now assign work from this idle dependency steward to one of them
-		if (!this.idleValidators.isEmpty()) {
-			ActorRef validator = this.idleValidators.poll();
-			this.assign(validator);
-		}
-	}
-	
-	private void handle(SendPlisMessage mesage) {
-		this.sender().tell(this.dataset.toPlisMessage(), this.self());
+		// If the dependency steward is idle now and idle validators exist, we can assign work from this idle dependency steward to one of them; because sending sampling tasks does not make this steward busy, we assign tasks until it gets idle
+		while (this.dependencyStewardRing.isIdle(message.getRhs()) && !this.idleValidators.isEmpty())
+			this.assign(this.idleValidators.poll());
 	}
 	
 	private void handle(CandidateMessage message) {
-		// The dependency steward is now idle
-		this.dependencyStewardRing.setBusy(message.getRhs(), false);
+		// The dependency steward is now one message less busy
+		this.dependencyStewardRing.decreaseBusy(message.getRhs());
 		
-		// Construct the validation message
-		Validator.ValidationMessage validationMessage = new Validator.ValidationMessage(message.getLhss(), message.getRhs());
-		if (this.waitingValidators.isEmpty()) { // The validator terminated while the dependency steward was collecting candidates
-			this.unassignedWork.add(validationMessage);
+		// Get the validator that is waiting for this candidate message
+		ActorRef validator = this.waitingValidators.poll();
+		
+		// Check if the dependency steward is done
+		if (this.isDone(message.getRhs(), message)) {
+			// Make the dependency steward permanently busy so that it is never asked for more candidates
+			this.dependencyStewardRing.increaseBusy(message.getRhs());
+			
+			// Remove the dependency steward from the local list so that we do not forward any further results to it
+			this.dependencyStewards[message.getRhs()] = null;
+			
+			// Tell the dependency steward to finalize, i.e., write results and terminate	
+			this.sender().tell(new FinalizeMessage("results", this.dataset), this.self());
+			
+			// Assign the waiting validator to something else; because the dependency steward of this message is still considered busy, we do not try to pull candidates from it again
+			if (validator != null)
+				this.assign(validator);
+			
+			// Check if the profiling is done
+			if (this.isDone()) {
+				// Terminate the profiling hierarchy
+				this.self().tell(PoisonPill.getInstance(), this.self());
+				for (ActorRef busyValidator : this.busyValidators.keySet())
+					busyValidator.tell(new TerminateMessage(), ActorRef.noSender());
+				for (ActorRef idleValidator : this.idleValidators)
+					idleValidator.tell(new TerminateMessage(), ActorRef.noSender());
+				
+				this.log().info("Finished discovery task.");
+			}
+			
 			return;
 		}
 		
-		// Assign the candidates to some a waiting validator
-		ActorRef validator = this.waitingValidators.poll();
-		this.busyValidators.put(validator, validationMessage);
-		validator.tell(validationMessage, this.self());
+		// Create the validation message and find a validator waiting for a validation message
+		ValidationMessage validationMessage = new ValidationMessage(message.getLhss(), message.getRhs());
 		
-		// TODO: Implement finalize: An rhs attribute has been fully processed if its dependencySteward returned no new candidates AND no validator is working on candidates from that attribute
+		// If the validator terminated while the dependency steward was collecting candidates
+		if (validator == null) {
+			// Hold the validation message
+			this.unassignedWork.add(validationMessage);
+		}
+		else {
+			// Assign the candidates to the waiting validator
+			this.busyValidators.put(validator, validationMessage);
+			validator.tell(validationMessage, this.self());
+		}
+		
+		// If the dependency steward is idle now and idle validators exist, we can assign work from this idle dependency steward to one of them; because sending sampling tasks does not make this steward busy, we assign tasks until it gets idle
+		while (this.dependencyStewardRing.isIdle(message.getRhs()) && !this.idleValidators.isEmpty())
+			this.assign(this.idleValidators.poll());
 	}
 
+	private boolean isDone(int attribute, CandidateMessage lastMessage) {
+		// A dependency steward that is done will eventually send an empty candidate message, because ...
+		// - it will be idle at some point (= all messages are processed)
+		//   - the profiler will at some point ask for candidates, because the sampling-validation strategy always comes back to validation once a sampling wish has been fulfilled
+		
+		// A dependency steward is done if the following three conditions are fulfilled:
+		// (1) it sends an empty candidate message (= no candidates need validation)
+		// (2) it has no work in progress, i.e., is idle (= no new results are on their way and may create new candidates)
+		// (3) it has no validation in progress (= no candidates are being validated and could potentially be non-FDs)
+		
+		// Check if the candidate message is empty
+		if (lastMessage.lhss.length != 0)
+			return false;
+		
+		// Check if the dependency steward is idle
+		if (this.dependencyStewardRing.isBusy(lastMessage.getRhs()))
+			return false;
+		
+		// Check if any other validator is validating candidates from the dependency steward
+		for (Object task : this.busyValidators.values())
+			if ((task instanceof ValidationMessage) && ((ValidationMessage) task).getRhs() == lastMessage.getRhs())
+				return false;
+		
+		return true;
+	}
+	
+	private boolean isDone() {
+		// The profiling is done if all dependency stewards are done
+		for (ActorRef steward : this.dependencyStewards)
+			if (steward != null)
+				return false;
+		return true;
+	}
+	
 	private void assign(ActorRef validator) {
 		// Let the validator idle if no discovery task is present yet
 		if (this.dataset == null) {
@@ -316,7 +390,7 @@ public class Profiler extends AbstractMaster {
 		// Try to assign a validation task
 		int attribute = this.dependencyStewardRing.nextIdleWithValidationPreference();
 		if (attribute >= 0) {
-			this.dependencyStewardRing.setBusy(attribute, true);
+			this.dependencyStewardRing.increaseBusy(attribute);
 			this.dependencyStewards[attribute].tell(new CandidateRequestMessage(), this.self());
 			
 			this.waitingValidators.add(validator);
@@ -340,22 +414,5 @@ public class Profiler extends AbstractMaster {
 		
 		// Let the validator idle if all dependency stewards are busy (i.e., we apply backpressure to not exhaust the profiler and its dependency stewards)
 		this.idleValidators.add(validator);
-	}
-	
-	protected void finish() {
-	//	DiscoveryTaskMessage discoveryDiscoveryTaskMessage = this.task;
-		
-		// TODO Re-substitute attribute indexes: for(fd : fds) for(attribute : fd) attribute = sortedIndex2schemaIndex[attribute];
-		// TODO: Unsort the attributes into their original order for all discovered FDs
-	//	for (fd : fds)
-	//		for (attribute : fd)
-	//			attribute = this.sortedIndex2schemaIndex[attribute]
-		
-		// TODO Report FDs
-		
-		
-		this.log().info("Finished discovery task.");
-				
-		// TODO Tell the Application that the discovery is done
 	}
 }

@@ -2,26 +2,37 @@ package de.hpi.octopus.structures;
 
 import java.util.Arrays;
 
-import akka.actor.ActorRef;
-
 public class DependencyStewardRing {
 
-	private boolean[] busy;
-	private boolean[] validation;
+	private int[] busy;				// >0 if a dependency steward is either busy updating or collecting candidates
+	private boolean[] validation;	// Indicates whether the dependency steward prefers validation or sampling; if it prefers validation, we should ask it for candidates, otherwise we start further sampling rounds
 	
 	private int current;
 	
-	public DependencyStewardRing(ActorRef[] dependencyStewards) {
-		this.busy = new boolean[dependencyStewards.length];
-		this.validation = new boolean[dependencyStewards.length];
+	public DependencyStewardRing(int numDependencyStewards) {
+		this.busy = new int[numDependencyStewards];
+		Arrays.fill(this.busy, 0);
+		this.validation = new boolean[numDependencyStewards];
 		
 		Arrays.fill(this.validation, true);
 		
 		this.current = 0;
 	}
 	
-	public void setBusy(int attribute, boolean busy) {
-		this.busy[attribute] = busy;
+	public void increaseBusy(int attribute) {
+		this.busy[attribute] = this.busy[attribute] + 1;
+	}
+	
+	public void decreaseBusy(int attribute) {
+		this.busy[attribute] = this.busy[attribute] - 1;
+	}
+	
+	public boolean isBusy(int attribute) {
+		return !this.isIdle(attribute);
+	}
+
+	public boolean isIdle(int attribute) {
+		return this.busy[attribute] == 0;
 	}
 	
 	public void setValidation(int attribute, boolean validation) {
@@ -32,7 +43,7 @@ public class DependencyStewardRing {
 		int candidate = -1;
 		int start = this.current;
 		do {
-			if (!this.busy[this.current] && this.validation[this.current])
+			if (this.isIdle(this.current) && this.validation[this.current])
 				candidate = this.current;
 			
 			this.current = (this.current == this.busy.length - 1) ? 0 : this.current + 1;
@@ -46,7 +57,7 @@ public class DependencyStewardRing {
 		int candidate = -1;
 		int start = this.current;
 		do {
-			if (!this.busy[this.current] && !this.validation[this.current])
+			if (this.isIdle(this.current) && !this.validation[this.current])
 				candidate = this.current;
 			
 			this.current = (this.current == this.busy.length - 1) ? 0 : this.current + 1;

@@ -8,8 +8,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.sun.xml.xsom.impl.Ref.Term;
+
 import akka.actor.ActorRef;
+import akka.actor.PoisonPill;
 import akka.actor.Props;
+import de.hpi.octopus.actors.DependencySteward;
 import de.hpi.octopus.actors.Storekeeper;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.masters.Profiler.SamplingResultMessage;
@@ -65,6 +69,11 @@ public class Validator extends AbstractSlave {
 		private int[][] records;
 	}
 
+	@Data @AllArgsConstructor
+	public static class TerminateMessage implements Serializable {
+		private static final long serialVersionUID = 4184578526050265353L;
+	}
+	
 	/////////////////
 	// Actor State //
 	/////////////////
@@ -91,6 +100,7 @@ public class Validator extends AbstractSlave {
 				.match(ValidationMessage.class, this::handle)
 				.match(SamplingMessage.class, this::handle)
 				.match(DataMessage.class, this::handle)
+				.match(TerminateMessage.class, this::handle)
 				.build()
 				.orElse(super.createReceive());
 	}
@@ -103,6 +113,11 @@ public class Validator extends AbstractSlave {
 	@Override
 	protected String getMasterName() {
 		return Profiler.DEFAULT_NAME;
+	}
+
+	private void handle(TerminateMessage message) {
+		this.self().tell(PoisonPill.getInstance(), this.self());
+		this.storekeeper.tell(PoisonPill.getInstance(), ActorRef.noSender());
 	}
 	
 	private void handle(DataMessage message) {

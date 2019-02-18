@@ -20,6 +20,7 @@ public class Dataset {
 	private final String[] schema;
 	private final int numRecords;
 	private final int[][] records;
+	private final String datasetName;
 
 	public int getNumAtrributes() {
 		return this.plis.length;
@@ -62,6 +63,7 @@ public class Dataset {
 		this.schema = sortedSchema;
 		this.numRecords = message.getNumRecords();
 		this.records = null;
+		this.datasetName = message.getDatasetName();
 		
 		// Debug output
 		for (Attribute attribute : attributes)
@@ -73,6 +75,7 @@ public class Dataset {
 		this.schema = null;
 		this.numRecords = message.getNumRecords();
 		this.records = new int[message.getNumRecords()][];
+		this.datasetName = null;
 		
 		// Generate and store pli-records
 		for (int r = 0; r < message.getNumRecords(); r++) {

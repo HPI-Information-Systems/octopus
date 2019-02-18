@@ -1,11 +1,20 @@
 package de.hpi.octopus.actors;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.IOException;
 import java.io.Serializable;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.BitSet;
+import java.util.List;
 
 import akka.actor.AbstractLoggingActor;
+import akka.actor.PoisonPill;
 import akka.actor.Props;
 import de.hpi.octopus.actors.masters.Profiler;
+import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.FDTree;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -50,12 +59,19 @@ public class DependencySteward extends AbstractLoggingActor {
 		private static final long serialVersionUID = -102767540935370948L;
 	}
 	
+	@Data @AllArgsConstructor
+	public static class FinalizeMessage implements Serializable {
+		private static final long serialVersionUID = 1958938788143620773L;
+		private String outputPath;
+		private Dataset dataset;
+	}
+	
 	/////////////////
 	// Actor State //
 	/////////////////
 
-	private final int rhs;
-	private final FDTree fds;
+	private int rhs;
+	private FDTree fds;
 	
 	private int maxDepth;
 	
@@ -80,6 +96,7 @@ public class DependencySteward extends AbstractLoggingActor {
 		return receiveBuilder()
 				.match(InvalidFDsMessage.class, this::handle)
 				.match(CandidateRequestMessage.class, this::handle)
+				.match(FinalizeMessage.class, this::handle)
 				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
 				.build();
 	}
@@ -152,4 +169,47 @@ public class DependencySteward extends AbstractLoggingActor {
 	//	if (samplingEfficiency > this.samplingThreshold) // Easy sampling idea: If more than 10% candidates are invalid, ask for a sampling round; the profiler will switch the preference back to validation after that preference was served anyway; we then see if we are back into <10% non-FDs
 			return false;
 	}
+
+	protected void handle(FinalizeMessage message) {
+		// Collect all valid lhss
+		BitSet allAttributes = new BitSet(this.fds.getNumAttributes());
+		allAttributes.set(0, this.fds.getNumAttributes());
+		List<BitSet> allLhss = this.fds.getLhsAndGeneralizations(allAttributes);
+		
+		// Free the FDTree
+		this.fds = null;
+		
+		// Write all FDs to disk
+		String pathString = message.getOutputPath() + File.pathSeparator + message.getDataset().getDatasetName();
+		String fileString = pathString + File.pathSeparator + message.getDataset().getSchema()[this.rhs] + ".txt";
+		
+		File path = new File(pathString);
+		if (!path.exists())
+			path.mkdirs();
+		
+		File file = new File(fileString);
+		if (file.exists())
+			file.delete();
+		
+		try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(pathString + fileString), Charset.forName("UTF8"))) {
+		    for (BitSet lhs : allLhss) {
+				StringBuffer buffer = new StringBuffer();
+				for (int attribute = lhs.nextSetBit(0); attribute > 0; attribute = lhs.nextSetBit(attribute + 1)) {
+					buffer.append(message.getDataset().getSchema()[attribute]);
+					buffer.append(", ");
+				}
+				buffer.delete(buffer.length() - 2 , buffer.length());
+				buffer.append(" --> ");
+				buffer.append(message.getDataset().getSchema()[this.rhs]);
+
+				writer.write(buffer.toString());
+			}
+		} catch (IOException x) {
+		    System.err.format("IOException: %s%n", x);
+		}
+		
+		// Terminate
+		this.self().tell(PoisonPill.getInstance(), this.self());
+	}
+	
 }

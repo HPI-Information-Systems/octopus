@@ -75,6 +75,6 @@ public class OctopusMaster extends OctopusSystem {
 		System.out.println(line);
 		scanner.close();
 		
-		//system.terminate();
+		system.terminate();
 	}
 }

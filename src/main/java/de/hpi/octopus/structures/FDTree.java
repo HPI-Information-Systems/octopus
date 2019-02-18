@@ -160,7 +160,7 @@ public class FDTree extends FDTreeElement {
 		// Trim leaf elements from the tree recursively. They remove themselves from the leaf list
 		this.trim(toDepth);
 	}
-
+	
 /*	public void removeLhs(BitSet lhs) {
 		// Unsafe fast-remove: 
 		// - if lhs does not exist, we get a NullPointerException
