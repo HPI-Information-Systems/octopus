@@ -64,7 +64,7 @@ public class FDTree extends FDTreeElement {
 		int[] lhsAttributes = new int[lhsCardinality + 1];
 		FDTreeElement[] lhsElements = new FDTreeElement[lhsCardinality + 1];
 		lhsElements[0] = this;
-		for (int attribute = lhs.nextSetBit(0), i = 1; attribute >= 0; attribute = lhs.nextSetBit(attribute), i++) {
+		for (int attribute = lhs.nextSetBit(0), i = 1; attribute >= 0; attribute = lhs.nextSetBit(attribute + 1), i++) {
 			lhsAttributes[i] = attribute;
 			lhsElements[i] = lhsElements[i - 1].getChildren()[attribute];
 		}
@@ -93,7 +93,7 @@ public class FDTree extends FDTreeElement {
 		FDTreeElement element = this;
 		int lhsSize = 0;
 		int attribute = lhs.nextSetBit(0);
-		for (int child = lhs.nextSetBit(attribute); child >= 0; child = lhs.nextSetBit(child)) {
+		for (int child = lhs.nextSetBit(attribute + 1); child >= 0; child = lhs.nextSetBit(child)) {
 			element.addChild(this.numAttributes, attribute, new FDTreeElement());
 			
 			element = element.getChildren()[attribute];

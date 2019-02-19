@@ -310,8 +310,9 @@ public class Validator extends AbstractSlave {
 			
 			i = j;
 		}
+		
 		return new ValidationResultMessage(
-				invalidLhss.toArray(new BitSet[invalidFDs.size()][]), 
-				invalidRhss.toArray(new int[invalidFDs.size()]));
+				invalidLhss.toArray(new BitSet[invalidRhss.size()][]), 
+				invalidRhss.toArray(new int[invalidRhss.size()]));
 	}
 }

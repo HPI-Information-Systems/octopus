@@ -190,8 +190,8 @@ public class Profiler extends AbstractMaster {
 		this.dependencyStewardRing = new DependencyStewardRing(this.dependencyStewards.length);
 		
 		// Assign initial work to all validators
-		for (ActorRef validator : this.idleValidators)
-			this.assign(validator);
+		while (!this.idleValidators.isEmpty())
+			this.assign(this.idleValidators.poll());
 	}
 
 	private void handle(SendPlisMessage mesage) {
@@ -200,7 +200,7 @@ public class Profiler extends AbstractMaster {
 	
 	protected void handle(ValidationResultMessage validationResultMessage) {
 		ActorRef validator = this.sender();
-		Validator.ValidationMessage validationMessage = (Validator.ValidationMessage) this.busyValidators.remove(validator);
+		ValidationMessage validationMessage = (ValidationMessage) this.busyValidators.remove(validator);
 		
 		int validationRequester = validationMessage.getRhs(); // Who asked for this validation
 		
@@ -304,6 +304,12 @@ public class Profiler extends AbstractMaster {
 				this.log().info("Finished discovery task.");
 			}
 			
+			return;
+		}
+		
+		// Assign the waiting validator to something else if there are no candidates (situation can happen, because although the dependency steward is not done it may still not have candidates atm.)
+		if (message.getLhss().length == 0) {
+			this.assign(validator);
 			return;
 		}
 		

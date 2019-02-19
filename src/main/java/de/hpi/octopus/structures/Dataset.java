@@ -31,7 +31,7 @@ public class Dataset {
 		String[] schema = message.getSchema();
 		int numRecords = message.getNumRecords();
 		
-		int numAttributes = this.getNumAtrributes();
+		int numAttributes = plis.length;
 		
 		// Sort the attributes by their number of pli clusters (including clusters of size 1)
 		@Data @AllArgsConstructor
