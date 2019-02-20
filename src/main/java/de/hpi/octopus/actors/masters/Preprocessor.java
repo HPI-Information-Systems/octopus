@@ -232,6 +232,7 @@ public class Preprocessor extends AbstractMaster {
 			int i = 0;
 			for (List<String> record : batch) {
 				values[i] = record.get(attribute);
+				i++;
 			}
 			this.attribute2indexer.get(attribute).tell(new IndexingMessage(attribute, values, this.watermark), this.self());
 		}

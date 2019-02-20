@@ -135,6 +135,8 @@ public class Validator extends AbstractSlave {
 	}
 	
 	private void handle(SamplingMessage message) {
+		long t = System.currentTimeMillis();
+		
 		// If the validation data is not present, put the sampling message to waiting and request the data
 		if (this.plis == null) {
 			this.waitingMessage = message;
@@ -144,10 +146,12 @@ public class Validator extends AbstractSlave {
 		}
 		
 		// Process the sampling message
-		this.process(message, this.sender());
+		int numNonFDs = this.process(message, this.sender());
+		
+		this.log().info("Processed {} in {} ms yielding {} non-FDs.", message.getClass().getName(), System.currentTimeMillis() - t, numNonFDs);
 	}
 	
-	private void process(SamplingMessage message, ActorRef sender) {
+	private int process(SamplingMessage message, ActorRef sender) {
 		Set<BitSet> matches = new HashSet<>();
 		
 		// Match all records with their "distance" neighbor w.r.t. the pli of the given "attribute"
@@ -162,7 +166,7 @@ public class Validator extends AbstractSlave {
 				
 				if (!matches.contains(match))
 					matches.add((BitSet) match.clone());
-				matches.clear();
+				match.clear();
 			}
 		}
 		int numMatches = matches.size();
@@ -182,9 +186,13 @@ public class Validator extends AbstractSlave {
 		ValidationResultMessage validationResult = toValidationResultMessage(invalidFDs);
 		SamplingResultMessage samplingResult = new SamplingResultMessage(validationResult.getInvalidLhss(), validationResult.getInvalidRhss(), numComparisons, numMatches);
 		sender.tell(samplingResult, this.self());
+		
+		return invalidFDs.size();
 	}
 	
 	private void handle(ValidationMessage message) {
+		long t = System.currentTimeMillis();
+		
 		// If the validation data is not present, put the validation message to waiting and request the data
 		if (this.plis == null) {
 			this.waitingMessage = message;
@@ -194,10 +202,12 @@ public class Validator extends AbstractSlave {
 		}
 		
 		// Process the validation message
-		this.process(message, this.sender());
+		int numNonFDs = this.process(message, this.sender());
+		
+		this.log().info("Processed {} in {} ms yielding {} non-FDs.", message.getClass().getName(), System.currentTimeMillis() - t, numNonFDs);
 	}
 	
-	private void process(ValidationMessage message, ActorRef sender) {
+	private int process(ValidationMessage message, ActorRef sender) {
 		// Initialize a container for the invalid FDs
 		List<FunctionalDependency> invalidFDs = new ArrayList<>(message.getLhss().length);
 		
@@ -227,6 +237,8 @@ public class Validator extends AbstractSlave {
 		
 		// Send the result to the sender of the validation message
 		sender.tell(toValidationResultMessage(invalidFDs), this.self());
+		
+		return invalidFDs.size();
 	}
 
 	private int[] findViolation(int[] lhs, int rhs) {

@@ -31,6 +31,11 @@ public class Dataset {
 		String[] schema = message.getSchema();
 		int numRecords = message.getNumRecords();
 		
+		// Debug output
+//		for (int[][] pli : plis)
+//			log.info(Utils.pliToString(pli));
+//		log.info("-------mm---------");
+		
 		int numAttributes = plis.length;
 		
 		// Sort the attributes by their number of pli clusters (including clusters of size 1)
@@ -46,12 +51,16 @@ public class Dataset {
 		
 		Attribute[] attributes = new Attribute[numAttributes];
 		for (int i = 0; i < numAttributes; i++) {
-			int numNonUniqueValues = Arrays.stream(plis[i]).map(cluster -> cluster.length).reduce((a,b) -> a + b).get().intValue();
+			int numNonUniqueValues = (plis[i].length == 0) ? 0 : Arrays.stream(plis[i]).map(cluster -> cluster.length).reduce((a,b) -> a + b).get().intValue();
 			int numStrippedClusters = plis[i].length;
 			attributes[i] = new Attribute(i, numRecords - numNonUniqueValues + numStrippedClusters);
 		}
 		
 		Arrays.sort(attributes);
+
+		// Debug output
+//		for (Attribute attribute : attributes)
+//			log.info(attribute.getSchemaIndex() + "  " + attribute.getNumClusters() + "   " + schema[attribute.getSchemaIndex()]);
 		
 		int[][][] sortedPlis = new int[numAttributes][][];
 		String[] sortedSchema = new String[numAttributes];
@@ -66,8 +75,9 @@ public class Dataset {
 		this.datasetName = message.getDatasetName();
 		
 		// Debug output
-		for (Attribute attribute : attributes)
-			log.info(attribute.getSchemaIndex() + "  " + attribute.getNumClusters() + "   " + this.schema[attribute.getSchemaIndex()]);
+//		for (int[][] pli : this.plis)
+//			log.info(Utils.pliToString(pli));
+//		log.info("-------II---------");
 	}
 	
 	public Dataset(PlisMessage message, LoggingAdapter log) {
@@ -76,6 +86,11 @@ public class Dataset {
 		this.numRecords = message.getNumRecords();
 		this.records = new int[message.getNumRecords()][];
 		this.datasetName = null;
+		
+		// Debug output
+//		for (int[][] pli : this.plis)
+//			log.info(Utils.pliToString(pli));
+//		log.info("-------oo---------");
 		
 		// Generate and store pli-records
 		for (int r = 0; r < message.getNumRecords(); r++) {
@@ -94,6 +109,12 @@ public class Dataset {
 		}
 		log.info("Done creating pli records");
 
+		// Debug output
+//		for (int i = 0; i < 50; i++) {
+//			log.info(Utils.recordToString(this.records[i]));
+//		}
+//		log.info("-------88---------");
+		
 		// Sort the records in all pli-clusters such that similar records are closer and the ordering of records differs in different plis
 		for (int attr = 0; attr < this.plis.length; attr++) {
 			int[][] pli = this.plis[attr];
@@ -148,6 +169,12 @@ public class Dataset {
 			}
 		}
 		log.info("Done sorting pli-clusters");
+		
+		// Debug output
+//		for (int i = 0; i < 50; i++) {
+//			log.info(Utils.recordToString(this.records[i]));
+//		}
+//		log.info("-------VV---------");
 	}
 	
 	public PlisMessage toPlisMessage() {

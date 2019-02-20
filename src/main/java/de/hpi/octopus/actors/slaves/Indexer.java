@@ -117,6 +117,8 @@ public class Indexer extends AbstractSlave {
 		Map<String, IntArrayList> index = this.attribute2value2positions.get(attribute);
 		
 		for (String value : values) {
+			// Simply using null values in a map implements the null = null semantic, which is used by most FD discovery algorithms; TODO: make the null semantics a parameter and implement both semantics here
+			
 			if (!index.containsKey(value))
 				index.put(value, new IntArrayList());
 			
