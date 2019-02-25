@@ -12,7 +12,13 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<scala.version>2.12</scala.version>
 		<akka.version>2.5.15</akka.version>
+		<chill-akka.version>0.9.3</chill-akka.version>
+		<logback.version>1.2.3</logback.version>
+		<jcommander.version>1.72</jcommander.version>
+		<lombok.version>1.18.2</lombok.version>
 		<metanome.version>1.2-SNAPSHOT</metanome.version>
+		<guava.version>27.0.1-jre</guava.version>
+		<fastutil.version>8.2.2</fastutil.version>
 	</properties>
 
 	<dependencies>
@@ -54,39 +60,33 @@
 		</dependency>
 
 		<dependency>
+			<groupId>com.twitter</groupId>
+			<artifactId>chill-akka_${scala.version}</artifactId>
+			<version>${chill-akka.version}</version>
+		</dependency>
+
+		<dependency>
 			<groupId>ch.qos.logback</groupId>
 			<artifactId>logback-classic</artifactId>
-			<version>1.2.3</version>
+			<version>${logback.version}</version>
 		</dependency>
 
 		<dependency>
 			<groupId>ch.qos.logback</groupId>
 			<artifactId>logback-core</artifactId>
-			<version>1.2.3</version>
+			<version>${logback.version}</version>
 		</dependency>
 
 		<dependency>
 			<groupId>com.beust</groupId>
 			<artifactId>jcommander</artifactId>
-			<version>1.72</version>
-		</dependency>
-
-		<dependency>
-			<groupId>com.twitter</groupId>
-			<artifactId>chill-akka_${scala.version}</artifactId>
-			<version>0.9.3</version>
+			<version>${jcommander.version}</version>
 		</dependency>
 
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
-			<version>1.18.2</version>
-		</dependency>
-
-		<dependency>
-			<groupId>it.unimi.dsi</groupId>
-			<artifactId>fastutil</artifactId>
-			<version>8.2.2</version>
+			<version>${lombok.version}</version>
 		</dependency>
 
 		<dependency>
@@ -101,6 +101,12 @@
 			<version>${metanome.version}</version>
 		</dependency>
 
+		<dependency>
+			<groupId>it.unimi.dsi</groupId>
+			<artifactId>fastutil</artifactId>
+			<version>${fastutil.version}</version>
+		</dependency>
+		
 	</dependencies>
 
 	<build>

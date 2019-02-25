@@ -4,20 +4,18 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-
-import com.sun.xml.xsom.impl.Ref.Term;
+import java.util.function.Function;
 
 import akka.actor.ActorRef;
 import akka.actor.PoisonPill;
 import akka.actor.Props;
-import de.hpi.octopus.actors.DependencySteward;
-import de.hpi.octopus.actors.Storekeeper;
+import de.hpi.octopus.actors.Storekeeper.SendDataMessage;
+import de.hpi.octopus.actors.Storekeeper.SendFilterMessage;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.masters.Profiler.SamplingResultMessage;
 import de.hpi.octopus.actors.masters.Profiler.ValidationResultMessage;
+import de.hpi.octopus.structures.BloomFilter;
 import de.hpi.octopus.structures.FunctionalDependency;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
@@ -69,6 +67,13 @@ public class Validator extends AbstractSlave {
 		private int[][] records;
 	}
 
+	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	public static class FilterMessage implements Serializable {
+		private static final long serialVersionUID = -1933265769147934970L;
+		private FilterMessage() {}
+		private BloomFilter filter;
+	}
+
 	@Data @AllArgsConstructor
 	public static class TerminateMessage implements Serializable {
 		private static final long serialVersionUID = 4184578526050265353L;
@@ -80,6 +85,7 @@ public class Validator extends AbstractSlave {
 
 	private int[][][] plis;
 	private int[][] records;
+	private BloomFilter filter;
 	
 	private ActorRef storekeeper;
 	
@@ -97,9 +103,10 @@ public class Validator extends AbstractSlave {
 	@Override
 	public Receive createReceive() {
 		return receiveBuilder()
-				.match(ValidationMessage.class, this::handle)
-				.match(SamplingMessage.class, this::handle)
-				.match(DataMessage.class, this::handle)
+				.match(ValidationMessage.class, message -> this.time(this::handle, message))
+				.match(SamplingMessage.class, message -> this.time(this::handle, message))
+				.match(DataMessage.class, message -> this.time(this::handle, message))
+				.match(FilterMessage.class, message -> this.time(this::handle, message))
 				.match(TerminateMessage.class, this::handle)
 				.build()
 				.orElse(super.createReceive());
@@ -115,44 +122,71 @@ public class Validator extends AbstractSlave {
 		return Profiler.DEFAULT_NAME;
 	}
 
+	private <T> void time(Function<T, Integer> handle, T message) {
+		long t = System.currentTimeMillis();
+		int numNonFDs = handle.apply(message);
+		this.log().info("Processed {} in {} ms yielding {} non-FDs.", message.getClass().getName(), System.currentTimeMillis() - t, numNonFDs);
+	}
+	
 	private void handle(TerminateMessage message) {
 		this.self().tell(PoisonPill.getInstance(), this.self());
 		this.storekeeper.tell(PoisonPill.getInstance(), ActorRef.noSender());
 	}
 	
-	private void handle(DataMessage message) {
+	private int handle(DataMessage message) {
 		// Store the data
 		this.plis = message.getPlis();
 		this.records = message.getRecords();
 		
-		// Process the waiting message
-		if (this.waitingMessage instanceof ValidationMessage)
-			this.process((ValidationMessage) this.waitingMessage, this.waitingMessageSender);
-		else
-			this.process((SamplingMessage) this.waitingMessage, this.waitingMessageSender);
+		// Remove waiting message and sender
+		Object waitingMessage = this.waitingMessage;
+		ActorRef waitingMessageSender = this.waitingMessageSender;
 		this.waitingMessage = null;
 		this.waitingMessageSender = null;
+		
+		// Process the waiting message
+		if (waitingMessage instanceof ValidationMessage)
+			return this.process((ValidationMessage) waitingMessage, waitingMessageSender);
+		return this.process((SamplingMessage) waitingMessage, waitingMessageSender);
 	}
 	
-	private void handle(SamplingMessage message) {
-		long t = System.currentTimeMillis();
+	private int handle(FilterMessage message) {
+		// Store the filter
+		this.filter = message.getFilter();
 		
-		// If the validation data is not present, put the sampling message to waiting and request the data
+		// Remove waiting message and sender
+		Object waitingMessage = this.waitingMessage;
+		ActorRef waitingMessageSender = this.waitingMessageSender;
+		this.waitingMessage = null;
+		this.waitingMessageSender = null;
+		
+		// Process the waiting message
+		return this.process((SamplingMessage) waitingMessage, waitingMessageSender);
+	}
+	
+	private int handle(SamplingMessage message) {
+		// Request the validation data if it is not present
 		if (this.plis == null) {
 			this.waitingMessage = message;
 			this.waitingMessageSender = this.sender();
-			this.storekeeper.tell(new Storekeeper.SendDataMessage(), this.self());
-			return;
+			this.storekeeper.tell(new SendDataMessage(), this.self());
+			return 0;
 		}
 		
 		// Process the sampling message
-		int numNonFDs = this.process(message, this.sender());
-		
-		this.log().info("Processed {} in {} ms yielding {} non-FDs.", message.getClass().getName(), System.currentTimeMillis() - t, numNonFDs);
+		return this.process(message, this.sender());
 	}
 	
 	private int process(SamplingMessage message, ActorRef sender) {
-		Set<BitSet> matches = new HashSet<>();
+		// Request the filter data if it is not present
+		if (this.filter == null) {
+			this.waitingMessage = message;
+			this.waitingMessageSender = sender;
+			this.storekeeper.tell(new SendFilterMessage(), this.self());
+			return 0;
+		}
+		
+		List<BitSet> matches = new ArrayList<>();
 		
 		// Match all records with their "distance" neighbor w.r.t. the pli of the given "attribute"
 		BitSet match = new BitSet(this.plis.length);
@@ -164,7 +198,7 @@ public class Validator extends AbstractSlave {
 						match.set(attribute);
 				numComparisons++;
 				
-				if (!matches.contains(match))
+				if (this.filter.add(match))
 					matches.add((BitSet) match.clone());
 				match.clear();
 			}
@@ -190,21 +224,17 @@ public class Validator extends AbstractSlave {
 		return invalidFDs.size();
 	}
 	
-	private void handle(ValidationMessage message) {
-		long t = System.currentTimeMillis();
-		
-		// If the validation data is not present, put the validation message to waiting and request the data
+	private int handle(ValidationMessage message) {
+		// Request the validation data if it is not present
 		if (this.plis == null) {
 			this.waitingMessage = message;
 			this.waitingMessageSender = this.sender();
-			this.storekeeper.tell(new Storekeeper.SendDataMessage(), this.self());
-			return;
+			this.storekeeper.tell(new SendDataMessage(), this.self());
+			return 0;
 		}
 		
 		// Process the validation message
-		int numNonFDs = this.process(message, this.sender());
-		
-		this.log().info("Processed {} in {} ms yielding {} non-FDs.", message.getClass().getName(), System.currentTimeMillis() - t, numNonFDs);
+		return this.process(message, this.sender());
 	}
 	
 	private int process(ValidationMessage message, ActorRef sender) {
@@ -225,13 +255,13 @@ public class Validator extends AbstractSlave {
 				BitSet invalidLhs = new BitSet(this.plis.length);
 				IntList invalidRhss = new IntArrayList();
 				for (int attribute = 0; attribute < this.plis.length; attribute++) {
-					if ((this.records[violation[0]][attribute] == -1) || (this.records[violation[0]][attribute] != this.records[violation[1]][attribute]))
-						invalidRhss.add(attribute);
-					else
+					if (this.isMatch(violation[0], violation[1], attribute))
 						invalidLhs.set(attribute);
+					else
+						invalidRhss.add(attribute);
 				}
-				for (int i = 0; i < invalidRhss.size(); i++)
-					invalidFDs.add(new FunctionalDependency(invalidLhs, rhs));
+				for (int invalidRhs : invalidRhss)
+					invalidFDs.add(new FunctionalDependency(invalidLhs, invalidRhs));
 			}
 		}
 		
@@ -240,7 +270,7 @@ public class Validator extends AbstractSlave {
 		
 		return invalidFDs.size();
 	}
-
+	
 	private int[] findViolation(int[] lhs, int rhs) {
 		for (int[] cluster : this.plis[lhs[0]]) {
 			Int2ObjectOpenHashMap<int[]> lhsHash2rhsValue = new Int2ObjectOpenHashMap<>();
@@ -280,19 +310,23 @@ public class Validator extends AbstractSlave {
 			hash = 31 * hash + this.records[recordID][lhs[index]];
 		return hash;
 	}
-	
-	private boolean isMatch(int recordID1, int recordID2, int[] attributes) {
+
+	private boolean isMatch(final int recordID1, final int recordID2, final int attribute) {
+		return isEqual(this.records[recordID1][attribute], this.records[recordID2][attribute]);
+	}
+
+	private boolean isMatch(final int recordID1, final int recordID2, final int[] attributes) {
 		for (int attribute : attributes)
 			if (isDifferent(this.records[recordID1][attribute], this.records[recordID2][attribute]))
 				return false;
 		return true;
 	}
 	
-	private static boolean isEqual(int value1, int value2) {
-		return !isDifferent(value1, value2);
+	private static boolean isEqual(final int value1, final int value2) {
+		return (value1 == value2) && (value1 != -1);
 	}
 	
-	private static boolean isDifferent(int value1, int value2) {
+	private static boolean isDifferent(final int value1, final int value2) {
 		return (value1 == -1) || (value1 != value2);
 	}
 	

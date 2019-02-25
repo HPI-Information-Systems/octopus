@@ -93,7 +93,7 @@ public class FDTree extends FDTreeElement {
 		FDTreeElement element = this;
 		int lhsSize = 0;
 		int attribute = lhs.nextSetBit(0);
-		for (int child = lhs.nextSetBit(attribute + 1); child >= 0; child = lhs.nextSetBit(child)) {
+		for (int child = lhs.nextSetBit(attribute + 1); child >= 0; child = lhs.nextSetBit(child + 1)) {
 			element.addChild(this.numAttributes, attribute, new FDTreeElement());
 			
 			element = element.getChildren()[attribute];

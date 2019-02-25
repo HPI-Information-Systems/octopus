@@ -16,7 +16,6 @@ import de.hpi.octopus.actors.DependencySteward;
 import de.hpi.octopus.actors.DependencySteward.CandidateRequestMessage;
 import de.hpi.octopus.actors.DependencySteward.FinalizeMessage;
 import de.hpi.octopus.actors.DependencySteward.InvalidFDsMessage;
-import de.hpi.octopus.actors.slaves.Validator;
 import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
 import de.hpi.octopus.actors.slaves.Validator.TerminateMessage;
 import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
@@ -249,6 +248,7 @@ public class Profiler extends AbstractMaster {
 			if (this.dependencyStewards[rhs] == null) // If the steward is already done
 				continue;
 			
+			this.dependencyStewardRing.setValidation(attribute, true); // The dependency steward gets a sampling result; whether or not the steward preferred sampling, it now prefers validation
 			this.dependencyStewardRing.increaseBusy(rhs);
 			this.dependencyStewards[rhs].tell(new InvalidFDsMessage(lhss, false, true, samplingEfficiency.getEfficiency()), this.self()); // Any SamplingResultMessage is marked to trigger an efficiency update (not only the own sampling requests), because the optimal sampling attribute is chosen independently of the dependency steward's attribute anyway
 		}

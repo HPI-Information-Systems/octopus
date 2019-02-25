@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.BitSet;
 import java.util.List;
+import java.util.function.Consumer;
 
 import akka.actor.AbstractLoggingActor;
 import akka.actor.PoisonPill;
@@ -94,13 +95,19 @@ public class DependencySteward extends AbstractLoggingActor {
 	@Override
 	public Receive createReceive() {
 		return receiveBuilder()
-				.match(InvalidFDsMessage.class, this::handle)
-				.match(CandidateRequestMessage.class, this::handle)
-				.match(FinalizeMessage.class, this::handle)
+				.match(InvalidFDsMessage.class, message -> this.time(this::handle, message, message.getInvalidLhss().length))
+				.match(CandidateRequestMessage.class, message -> this.time(this::handle, message, MAX_CANDIDATES_PER_REQUEST))
+				.match(FinalizeMessage.class, message -> this.time(this::handle, message, 1))
 				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
 				.build();
 	}
 
+	private <T> void time(Consumer<T> handle, T message, int size) {
+		long t = System.currentTimeMillis();
+		handle.accept(message);
+		this.log().info("Processed {} in {} ms given a message size of {}.", message.getClass().getName(), System.currentTimeMillis() - t, size);
+	}
+	
 	protected void handle(CandidateRequestMessage message) {
 		BitSet[] lhss = this.fds.announceLhss(MAX_CANDIDATES_PER_REQUEST);
 		this.sender().tell(new Profiler.CandidateMessage(lhss, this.rhs), this.self());
