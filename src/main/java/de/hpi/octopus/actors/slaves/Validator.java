@@ -127,7 +127,7 @@ public class Validator extends AbstractSlave {
 	private <T> void time(Function<T, Integer> handle, T message) {
 		long t = System.currentTimeMillis();
 		int numNonFDs = handle.apply(message);
-		this.log().info("Processed {} in {} ms yielding {} non-FDs.", message.getClass().getName(), System.currentTimeMillis() - t, numNonFDs);
+		this.log().info("Processed {} in {} ms yielding {} non-FDs.", message.getClass().getSimpleName(), System.currentTimeMillis() - t, numNonFDs);
 	}
 	
 	private void handle(TerminateMessage message) {

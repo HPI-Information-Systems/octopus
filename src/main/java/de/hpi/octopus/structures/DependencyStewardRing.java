@@ -38,12 +38,25 @@ public class DependencyStewardRing {
 		return this.busy[attribute] == 0;
 	}
 	
+	public void setValidation(boolean validation) {
+		for (int attribute = 0; attribute < this.validation.length; attribute++)
+			this.validation[attribute] = validation;
+	}
+	
 	public void setValidation(int attribute, boolean validation) {
 		this.validation[attribute] = validation;
 	}
 	
+	public boolean isValidation(int attribute) {
+		return this.validation[attribute];
+	}
+	
 	public void setCandidates(int attribute, boolean candidates) {
 		this.candidates[attribute] = candidates;
+	}
+	
+	public boolean isCandidates(int attribute) {
+		return this.candidates[attribute];
 	}
 	
 	public int nextIdleWithValidationPreferenceAndCandidates() {

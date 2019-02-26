@@ -14,7 +14,8 @@ import java.util.function.Consumer;
 import akka.actor.AbstractLoggingActor;
 import akka.actor.PoisonPill;
 import akka.actor.Props;
-import de.hpi.octopus.actors.masters.Profiler;
+import de.hpi.octopus.actors.masters.Profiler.CandidateMessage;
+import de.hpi.octopus.actors.masters.Profiler.FDsUpdatedMessage;
 import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.FDTree;
 import lombok.AllArgsConstructor;
@@ -105,12 +106,12 @@ public class DependencySteward extends AbstractLoggingActor {
 	private <T> void time(Consumer<T> handle, T message, int size) {
 		long t = System.currentTimeMillis();
 		handle.accept(message);
-		this.log().info("Processed {} in {} ms given a message size of {}.", message.getClass().getName(), System.currentTimeMillis() - t, size);
+		this.log().info("Processed {} in {} ms given a message size of {}.", message.getClass().getSimpleName(), System.currentTimeMillis() - t, size);
 	}
 	
 	protected void handle(CandidateRequestMessage message) {
 		BitSet[] lhss = this.fds.announceLhss(MAX_CANDIDATES_PER_REQUEST);
-		this.sender().tell(new Profiler.CandidateMessage(lhss, this.rhs), this.self());
+		this.sender().tell(new CandidateMessage(lhss, this.rhs), this.self());
 	}
 	
 	protected void handle(InvalidFDsMessage message) {
@@ -154,10 +155,10 @@ public class DependencySteward extends AbstractLoggingActor {
 				this.samplingUpdateEfficiency = (double) numUpdates / (double) message.getInvalidLhss().length;
 			}
 			boolean validation = this.calculatePreference();
-			this.sender().tell(new Profiler.FDsUpdatedMessage(this.rhs, true, validation), this.self());
+			this.sender().tell(new FDsUpdatedMessage(this.rhs, true, validation), this.self());
 		}
 		else {
-			this.sender().tell(new Profiler.FDsUpdatedMessage(this.rhs, false, false), this.self());
+			this.sender().tell(new FDsUpdatedMessage(this.rhs, false, false), this.self());
 		}
 	}
 	
@@ -200,20 +201,20 @@ public class DependencySteward extends AbstractLoggingActor {
 		
 		try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(fileString), Charset.forName("UTF8"))) {
 		    for (BitSet lhs : allLhss) {
-				StringBuffer buffer = new StringBuffer();
+				StringBuffer buffer = new StringBuffer("[");
 				for (int attribute = lhs.nextSetBit(0); attribute >= 0; attribute = lhs.nextSetBit(attribute + 1)) {
 					buffer.append(message.getDataset().getSchema()[attribute]);
 					buffer.append(", ");
 				}
 				buffer.delete(buffer.length() - 2 , buffer.length());
-				buffer.append(" --> ");
+				buffer.append("] --> ");
 				buffer.append(message.getDataset().getSchema()[this.rhs]);
 				buffer.append("\r\n");
 
 				writer.write(buffer.toString());
 			}
 		} catch (IOException x) {
-		    System.err.format("IOException: %s%n", x);
+		    this.log().error(x, x.getMessage());
 		}
 		
 		// Terminate

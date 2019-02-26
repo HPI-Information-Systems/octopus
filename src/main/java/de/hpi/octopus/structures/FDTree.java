@@ -130,8 +130,13 @@ public class FDTree extends FDTreeElement {
 		}
 		
 		// Disconnect the collected lhss sequence from the linked list
-		this.first.getPrevious().setNext(null);
-		this.first.setPrevious(null);
+		if (this.first != null) {
+			this.first.getPrevious().setNext(null);
+			this.first.setPrevious(null);
+		}
+		else {
+			this.last = null;
+		}
 		
 		return lhss;
 	}

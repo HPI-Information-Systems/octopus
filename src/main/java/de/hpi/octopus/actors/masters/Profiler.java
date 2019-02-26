@@ -212,6 +212,8 @@ public class Profiler extends AbstractMaster {
 				continue;
 			
 			this.dependencyStewardRing.increaseBusy(rhs);
+			
+			// Update the validation efficiency only for the dependency steward that actually requested this validation
 			if (rhs == validationRequester) {
 				double validationEfficiency = (double) (validationMessage.getLhss().length - lhss.length) / (double) validationMessage.getLhss().length;
 				this.dependencyStewards[rhs].tell(new InvalidFDsMessage(lhss, true, true, validationEfficiency), this.self());
@@ -220,6 +222,9 @@ public class Profiler extends AbstractMaster {
 				this.dependencyStewards[rhs].tell(new InvalidFDsMessage(lhss, true, false, 0), this.self());
 			}
 		}
+		
+		// Check if the validation requester is done and, if true, finish that dependency steward
+		this.finishStewardIfDone(validationRequester);
 		
 		// Assign new work to the validator
 		this.assign(validator);
@@ -248,10 +253,12 @@ public class Profiler extends AbstractMaster {
 			if (this.dependencyStewards[rhs] == null) // If the steward is already done
 				continue;
 			
-			this.dependencyStewardRing.setValidation(attribute, true); // The dependency steward gets a sampling result; whether or not the steward preferred sampling, it now prefers validation
 			this.dependencyStewardRing.increaseBusy(rhs);
 			this.dependencyStewards[rhs].tell(new InvalidFDsMessage(lhss, false, true, samplingEfficiency.getEfficiency()), this.self()); // Any SamplingResultMessage is marked to trigger an efficiency update (not only the own sampling requests), because the optimal sampling attribute is chosen independently of the dependency steward's attribute anyway
 		}
+		
+		// The sampling fulfills all sampling preferences for all dependency stewards whether or not they actually issued this sampling request or got an update from it
+		this.dependencyStewardRing.setValidation(true);
 		
 		// Assign new work to the validator
 		this.assign(validator);
@@ -278,49 +285,22 @@ public class Profiler extends AbstractMaster {
 		this.dependencyStewardRing.decreaseBusy(message.getRhs());
 		
 		// The dependency steward may have no more candidates now
-		if (message.getLhss().length < DependencySteward.MAX_CANDIDATES_PER_REQUEST)
+		if (message.getLhss().length == 0)
 			this.dependencyStewardRing.setCandidates(message.getRhs(), false);
+		
+		// Check if the candidate provider is done and, if true, finish that dependency steward
+		this.finishStewardIfDone(message.getRhs());
 		
 		// Get the validator that is waiting for this candidate message
 		ActorRef validator = this.waitingValidators.poll();
 		
-		// Check if the dependency steward is done
-		if (this.isDone(message.getRhs(), message)) {
-			// Make the dependency steward permanently busy so that it is never asked for more candidates
-			this.dependencyStewardRing.increaseBusy(message.getRhs());
-			
-			// Remove the dependency steward from the local list so that we do not forward any further results to it
-			this.dependencyStewards[message.getRhs()] = null;
-			
-			// Tell the dependency steward to finalize, i.e., write results and terminate	
-			this.sender().tell(new FinalizeMessage("results", this.dataset), this.self());
-			
-			// Assign the waiting validator to something else; because the dependency steward of this message is still considered busy, we do not try to pull candidates from it again
-			if (validator != null)
-				this.assign(validator);
-			
-			// Check if the profiling is done
-			if (this.isDone()) {
-				// Terminate the profiling hierarchy
-				this.self().tell(PoisonPill.getInstance(), this.self());
-				for (ActorRef busyValidator : this.busyValidators.keySet())
-					busyValidator.tell(new TerminateMessage(), ActorRef.noSender());
-				for (ActorRef idleValidator : this.idleValidators)
-					idleValidator.tell(new TerminateMessage(), ActorRef.noSender());
-				
-				this.log().info("Finished discovery task.");
-			}
-			
-			return;
-		}
-		
-		// Assign the waiting validator to something else if there are no candidates (situation can happen, because although the dependency steward is not done it may still not have candidates atm.)
-		if (message.getLhss().length == 0) {
+		// Assign the validator to somthing else if the candidate message did not deliver candidates
+		if ((message.getLhss().length == 0) && (validator != null)) {
 			this.assign(validator);
 			return;
 		}
 		
-		// Create the validation message and find a validator waiting for a validation message
+		// Create the validation message
 		ValidationMessage validationMessage = new ValidationMessage(message.getLhss(), message.getRhs());
 		
 		// If the validator terminated while the dependency steward was collecting candidates
@@ -339,40 +319,6 @@ public class Profiler extends AbstractMaster {
 			this.assign(this.idleValidators.poll());
 	}
 
-	private boolean isDone(int attribute, CandidateMessage lastMessage) {
-		// A dependency steward that is done will eventually send an empty candidate message, because ...
-		// - it will be idle at some point (= all messages are processed)
-		//   - the profiler will at some point ask for candidates, because the sampling-validation strategy always comes back to validation once a sampling wish has been fulfilled
-		
-		// A dependency steward is done if the following three conditions are fulfilled:
-		// (1) it sends an empty candidate message (= no candidates need validation)
-		// (2) it has no work in progress, i.e., is idle (= no new results are on their way and may create new candidates)
-		// (3) it has no validation in progress (= no candidates are being validated and could potentially be non-FDs)
-		
-		// Check if the candidate message is empty
-		if (lastMessage.getLhss().length != 0)
-			return false;
-		
-		// Check if the dependency steward is idle
-		if (this.dependencyStewardRing.isBusy(lastMessage.getRhs()))
-			return false;
-		
-		// Check if any other validator is validating candidates from the dependency steward
-		for (Object task : this.busyValidators.values())
-			if ((task instanceof ValidationMessage) && ((ValidationMessage) task).getRhs() == lastMessage.getRhs())
-				return false;
-		
-		return true;
-	}
-	
-	private boolean isDone() {
-		// The profiling is done if all dependency stewards are done
-		for (ActorRef steward : this.dependencyStewards)
-			if (steward != null)
-				return false;
-		return true;
-	}
-	
 	private void assign(ActorRef validator) {
 		// Let the validator idle if no discovery task is present yet
 		if (this.dataset == null) {
@@ -428,4 +374,92 @@ public class Profiler extends AbstractMaster {
 		// Let the validator idle if all dependency stewards are busy (i.e., we apply backpressure to not exhaust the profiler and its dependency stewards)
 		this.idleValidators.add(validator);
 	}
+
+	private void finishStewardIfDone(int stewardAttribute) {
+		// Check if the dependency steward is actually done
+		if (!this.isDone(stewardAttribute))
+			return;
+		
+		// Make the dependency steward permanently busy so that it is never asked for more candidates
+		this.dependencyStewardRing.increaseBusy(stewardAttribute);
+		
+		// Remove the dependency steward from the local list so that we do not forward any further results to it
+		this.dependencyStewards[stewardAttribute] = null;
+		
+		// Tell the dependency steward to finalize, i.e., write results and terminate	
+		this.sender().tell(new FinalizeMessage("results", this.dataset), this.self());
+		
+		System.out.println("Done " + stewardAttribute);
+		for (int i = 0; i < this.dataset.getNumAtrributes(); i++)
+			if (this.dependencyStewards[i] == null)
+				System.out.print(1);
+			else
+				System.out.print(0);
+		System.out.println(" done");
+		for (int i = 0; i < this.dataset.getNumAtrributes(); i++)
+			if (this.dependencyStewardRing.isCandidates(i))
+				System.out.print(1);
+			else
+				System.out.print(0);
+		System.out.println(" candidates");
+		for (int i = 0; i < this.dataset.getNumAtrributes(); i++)
+			if (this.dependencyStewardRing.isBusy(i))
+				System.out.print(1);
+			else
+				System.out.print(0);
+		System.out.println(" busy");
+		for (int i = 0; i < this.dataset.getNumAtrributes(); i++)
+			if (this.dependencyStewardRing.isValidation(i))
+				System.out.print(1);
+			else
+				System.out.print(0);
+		System.out.println(" validation");
+		
+		// Check if the profiling is done
+		if (this.isDone()) {
+			// Terminate the profiling hierarchy
+			this.self().tell(PoisonPill.getInstance(), this.self());
+			for (ActorRef busyValidator : this.busyValidators.keySet())
+				busyValidator.tell(new TerminateMessage(), ActorRef.noSender());
+			for (ActorRef idleValidator : this.idleValidators)
+				idleValidator.tell(new TerminateMessage(), ActorRef.noSender());
+			
+			this.log().info("Finished discovery task.");
+		}
+	}
+	
+	private boolean isDone(int attribute) {
+		// A dependency steward that is done will eventually send an empty candidate message, because ...
+		// - it will be idle at some point (= all messages are processed)
+		//   - the profiler will at some point ask for candidates, because the sampling-validation strategy always comes back to validation once a sampling wish has been fulfilled
+		
+		// A dependency steward is done if the following three conditions are fulfilled:
+		// (1) it has no more candidates, i.e., it has sent an empty candidate message (= no candidates need validation)
+		// (2) it has no work in progress, i.e., is idle (= no new results are on their way and may create new candidates)
+		// (3) it has no validation in progress (= no candidates are being validated and could potentially be non-FDs)
+		
+		// Check if the dependency steward has no more candidates
+		if (this.dependencyStewardRing.isCandidates(attribute))
+			return false;
+		
+		// Check if the dependency steward is idle
+		if (this.dependencyStewardRing.isBusy(attribute))
+			return false;
+		
+		// Check if any validator is validating candidates from the dependency steward
+		for (Object task : this.busyValidators.values())
+			if ((task instanceof ValidationMessage) && ((ValidationMessage) task).getRhs() == attribute)
+				return false;
+		
+		return true;
+	}
+	
+	private boolean isDone() {
+		// The profiling is done if all dependency stewards are done
+		for (ActorRef steward : this.dependencyStewards)
+			if (steward != null)
+				return false;
+		return true;
+	}
+	
 }
