@@ -40,3 +40,4 @@ target/
 .project
 .settings
 native/
+results/

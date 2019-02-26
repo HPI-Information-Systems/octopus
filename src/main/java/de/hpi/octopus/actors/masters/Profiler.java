@@ -261,6 +261,9 @@ public class Profiler extends AbstractMaster {
 		// The dependency steward is now one message less busy
 		this.dependencyStewardRing.decreaseBusy(message.getRhs());
 		
+		// The dependency steward may have new candidates now
+		this.dependencyStewardRing.setCandidates(message.getRhs(), true);
+		
 		// If the dependency steward updated its preference, the profiler has to update it, too
 		if (message.isUpdatePreference())
 			this.dependencyStewardRing.setValidation(message.getRhs(), message.isValidation());
@@ -273,6 +276,10 @@ public class Profiler extends AbstractMaster {
 	private void handle(CandidateMessage message) {
 		// The dependency steward is now one message less busy
 		this.dependencyStewardRing.decreaseBusy(message.getRhs());
+		
+		// The dependency steward may have no more candidates now
+		if (message.getLhss().length < DependencySteward.MAX_CANDIDATES_PER_REQUEST)
+			this.dependencyStewardRing.setCandidates(message.getRhs(), false);
 		
 		// Get the validator that is waiting for this candidate message
 		ActorRef validator = this.waitingValidators.poll();
@@ -343,7 +350,7 @@ public class Profiler extends AbstractMaster {
 		// (3) it has no validation in progress (= no candidates are being validated and could potentially be non-FDs)
 		
 		// Check if the candidate message is empty
-		if (lastMessage.lhss.length != 0)
+		if (lastMessage.getLhss().length != 0)
 			return false;
 		
 		// Check if the dependency steward is idle
@@ -394,7 +401,7 @@ public class Profiler extends AbstractMaster {
 		}
 		
 		// Try to assign a validation task
-		int attribute = this.dependencyStewardRing.nextIdleWithValidationPreference();
+		int attribute = this.dependencyStewardRing.nextIdleWithValidationPreferenceAndCandidates();
 		if (attribute >= 0) {
 			this.dependencyStewardRing.increaseBusy(attribute);
 			this.dependencyStewards[attribute].tell(new CandidateRequestMessage(), this.self());

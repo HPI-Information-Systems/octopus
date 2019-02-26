@@ -198,7 +198,7 @@ public class DependencySteward extends AbstractLoggingActor {
 		if (file.exists())
 			file.delete();
 		
-		try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(pathString + fileString), Charset.forName("UTF8"))) {
+		try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(fileString), Charset.forName("UTF8"))) {
 		    for (BitSet lhs : allLhss) {
 				StringBuffer buffer = new StringBuffer();
 				for (int attribute = lhs.nextSetBit(0); attribute >= 0; attribute = lhs.nextSetBit(attribute + 1)) {
@@ -208,6 +208,7 @@ public class DependencySteward extends AbstractLoggingActor {
 				buffer.delete(buffer.length() - 2 , buffer.length());
 				buffer.append(" --> ");
 				buffer.append(message.getDataset().getSchema()[this.rhs]);
+				buffer.append("\r\n");
 
 				writer.write(buffer.toString());
 			}

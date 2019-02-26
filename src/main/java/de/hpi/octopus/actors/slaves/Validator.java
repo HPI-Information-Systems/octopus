@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.function.Function;
 
@@ -86,6 +87,7 @@ public class Validator extends AbstractSlave {
 	private int[][][] plis;
 	private int[][] records;
 	private BloomFilter filter;
+	//private HashSet<BitSet> filter2 = new HashSet<>();
 	
 	private ActorRef storekeeper;
 	
@@ -194,7 +196,7 @@ public class Validator extends AbstractSlave {
 		for (int[] cluster : this.plis[message.getAttribute()]) {
 			for (int record = 0; record < cluster.length - message.getDistance(); record++) {
 				for (int attribute = 0; attribute < this.plis.length; attribute++)
-					if (isEqual(this.records[record][attribute], this.records[record + message.getDistance()][attribute]))
+					if (isMatch(record, record + message.getDistance(), attribute))
 						match.set(attribute);
 				numComparisons++;
 				
@@ -206,7 +208,7 @@ public class Validator extends AbstractSlave {
 		int numMatches = matches.size();
 		
 		// Convert matches into invalid FDs
-		List<FunctionalDependency> invalidFDs = new ArrayList<>(matches.size() * this.plis.length / 2);
+		List<FunctionalDependency> invalidFDs = new ArrayList<>(numMatches * this.plis.length / 2);
 		for (BitSet bitsetLhs : matches) {
 			for (int rhs = 0; rhs < this.plis.length; rhs++) {
 				if (!bitsetLhs.get(rhs)) {

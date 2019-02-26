@@ -64,7 +64,8 @@ public class OctopusMaster extends OctopusSystem {
 		System.out.println(line);
 		
 		DatasetDescriptor dataset = new DatasetDescriptor(
-				"ncvoter_Statewide_1024001r_71c", "/home/thorsten/Data/Development/workspace/papenbrock/HyFDTestRunner/data/", ".csv",
+				"ncvoter_Statewide_10001r_71c",//"ncvoter_Statewide_1024001r_71c", 
+				"/home/thorsten/Data/Development/workspace/papenbrock/HyFDTestRunner/data/", ".csv",
 				true, StandardCharsets.UTF_8, ',', '"', '\\', "", false, true, 100, 0, true);
 		
 		system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new Preprocessor.PreprocessingTaskMessage(dataset), ActorRef.noSender());
