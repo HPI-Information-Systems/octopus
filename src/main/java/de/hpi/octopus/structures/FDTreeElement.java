@@ -47,9 +47,9 @@ public class FDTreeElement {
 	}
 	
 	public void collectLhsAndGeneralizations(BitSet lhs, int currentLhsAttr, List<BitSet> result) {
-		while (currentLhsAttr >= 0) {
+		while (currentLhsAttr >= 0) {	
 			int nextLhsAttr = lhs.nextSetBit(currentLhsAttr + 1);
-			
+
 			if (this.children[currentLhsAttr] != null)
 				this.children[currentLhsAttr].collectLhsAndGeneralizations(lhs, nextLhsAttr, result);
 			

@@ -86,7 +86,9 @@ public class FDTreeTest {
 		
 		fdtree = new FDTree(5);
 		lhs.set(0, 5);
+		assertTrue(fdtree.containsLhsOrGeneralization(lhs));
 		List<BitSet> lhss = fdtree.getLhsAndGeneralizations(lhs);
+		assertTrue(lhss.size() == 5);
 		for (BitSet l : lhss)
 			fdtree.removeLhs(l);
 		assertFalse(fdtree.containsLhsOrGeneralization(lhs));

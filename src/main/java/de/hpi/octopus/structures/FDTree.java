@@ -56,7 +56,7 @@ public class FDTree extends FDTreeElement {
 	public void removeLhs(BitSet lhs) {
 		// Unsafe fast-remove: 
 		// - if lhs does not exist, we get a NullPointerException
-		// - if only a specialization exists, this might get removed instead
+		// - if only a specialization exists, we get a ClassCastException
 		
 		int lhsCardinality = lhs.cardinality();
 
@@ -69,7 +69,7 @@ public class FDTree extends FDTreeElement {
 			lhsElements[i] = lhsElements[i - 1].getChildren()[attribute];
 		}
 		
-		// Remove the leaf element from the linked list of unannounced leaf elements
+		// Remove the leaf element from the linked list of unannounced leaf elements		
 		FDTreeLeaf leaf = (FDTreeLeaf) lhsElements[lhsCardinality];
 		if (this.first == leaf)
 			this.first = leaf.getNext();

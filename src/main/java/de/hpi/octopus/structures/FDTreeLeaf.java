@@ -17,7 +17,7 @@ public class FDTreeLeaf extends FDTreeElement {
 	private FDTreeLeaf previous;	// If this is an unannounced candidate, previous points to the previous unannounced candidate
 	
 	public FDTreeLeaf(BitSet lhs, FDTreeLeaf next, FDTreeLeaf previous) {
-		this.lhs = lhs;
+		this.lhs = (BitSet) lhs.clone();
 		this.next = next;
 		this.previous = previous;
 	}

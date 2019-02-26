@@ -187,8 +187,8 @@ public class DependencySteward extends AbstractLoggingActor {
 		this.fds = null;
 		
 		// Write all FDs to disk
-		String pathString = message.getOutputPath() + File.pathSeparator + message.getDataset().getDatasetName();
-		String fileString = pathString + File.pathSeparator + message.getDataset().getSchema()[this.rhs] + ".txt";
+		String pathString = message.getOutputPath() + File.separatorChar + message.getDataset().getDatasetName();
+		String fileString = pathString + File.separatorChar + message.getDataset().getSchema()[this.rhs] + ".txt";
 		
 		File path = new File(pathString);
 		if (!path.exists())
@@ -201,7 +201,7 @@ public class DependencySteward extends AbstractLoggingActor {
 		try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(pathString + fileString), Charset.forName("UTF8"))) {
 		    for (BitSet lhs : allLhss) {
 				StringBuffer buffer = new StringBuffer();
-				for (int attribute = lhs.nextSetBit(0); attribute > 0; attribute = lhs.nextSetBit(attribute + 1)) {
+				for (int attribute = lhs.nextSetBit(0); attribute >= 0; attribute = lhs.nextSetBit(attribute + 1)) {
 					buffer.append(message.getDataset().getSchema()[attribute]);
 					buffer.append(", ");
 				}
