@@ -14,6 +14,7 @@ import akka.actor.Terminated;
 import de.hpi.octopus.actors.DatasetReader;
 import de.hpi.octopus.actors.DatasetReader.ReadMessage;
 import de.hpi.octopus.actors.DatasetReader.RestartMessage;
+import de.hpi.octopus.actors.listeners.ProgressListener;
 import de.hpi.octopus.actors.masters.Profiler.DiscoveryTaskMessage;
 import de.hpi.octopus.actors.slaves.Indexer.FinalizeMessage;
 import de.hpi.octopus.actors.slaves.Indexer.IndexingMessage;
@@ -169,6 +170,8 @@ public class Preprocessor extends AbstractMaster {
 			return;
 		}
 		
+		this.context().actorSelection("/user/" + ProgressListener.DEFAULT_NAME).tell(new ProgressListener.StartMessage(), ActorRef.noSender());
+		
 		this.datasetDescriptor = message.getInput();
 		
 		this.datasetReader = this.context().actorOf(DatasetReader.props(message.getInput()), DatasetReader.DEFAULT_NAME);
@@ -314,7 +317,7 @@ public class Preprocessor extends AbstractMaster {
 		this.context().actorSelection("/user/" + Profiler.DEFAULT_NAME).tell(new DiscoveryTaskMessage(this.plis, this.numRecords, this.schema, this.datasetDescriptor.getDatasetName()), this.self());
 		
 		// Terminate the preprocessing hierarchy
-		this.self().tell(PoisonPill.getInstance(), this.self());
+		this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
 		this.datasetReader.tell(PoisonPill.getInstance(), ActorRef.noSender());
 		this.indexers.forEach(indexer -> indexer.tell(PoisonPill.getInstance(), ActorRef.noSender()));
 	}

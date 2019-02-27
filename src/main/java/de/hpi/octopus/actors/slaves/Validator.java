@@ -131,7 +131,7 @@ public class Validator extends AbstractSlave {
 	}
 	
 	private void handle(TerminateMessage message) {
-		this.self().tell(PoisonPill.getInstance(), this.self());
+		this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
 		this.storekeeper.tell(PoisonPill.getInstance(), ActorRef.noSender());
 	}
 	

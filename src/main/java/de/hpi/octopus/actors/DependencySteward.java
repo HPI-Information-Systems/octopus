@@ -12,8 +12,10 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import akka.actor.AbstractLoggingActor;
+import akka.actor.ActorRef;
 import akka.actor.PoisonPill;
 import akka.actor.Props;
+import de.hpi.octopus.actors.listeners.ProgressListener;
 import de.hpi.octopus.actors.masters.Profiler.CandidateMessage;
 import de.hpi.octopus.actors.masters.Profiler.FDsUpdatedMessage;
 import de.hpi.octopus.structures.Dataset;
@@ -216,6 +218,9 @@ public class DependencySteward extends AbstractLoggingActor {
 		} catch (IOException x) {
 		    this.log().error(x, x.getMessage());
 		}
+		
+		// Tell the progress listener that this dependency steward is done
+		this.context().actorSelection("/user/" + ProgressListener.DEFAULT_NAME).tell(new ProgressListener.FinishedMessage(allLhss.size()), ActorRef.noSender());
 		
 		// Terminate
 		this.self().tell(PoisonPill.getInstance(), this.self());

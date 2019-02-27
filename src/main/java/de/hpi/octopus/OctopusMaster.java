@@ -9,6 +9,7 @@ import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import akka.cluster.Cluster;
 import de.hpi.octopus.actors.Storekeeper;
+import de.hpi.octopus.actors.listeners.ProgressListener;
 import de.hpi.octopus.actors.masters.Preprocessor;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.slaves.Indexer;
@@ -28,17 +29,18 @@ public class OctopusMaster extends OctopusSystem {
 		Cluster.get(system).registerOnMemberUp(new Runnable() {
 			@Override
 			public void run() {
-			//	system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
-			//	system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
-
-				system.actorOf(Preprocessor.props(), Preprocessor.DEFAULT_NAME);
+			//	ActorRef clusterListener = system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
+			//	ActorRef metricsListener = system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
+				ActorRef progressListener = system.actorOf(ProgressListener.props(), ProgressListener.DEFAULT_NAME);
+				
+				ActorRef preprocessor = system.actorOf(Preprocessor.props(), Preprocessor.DEFAULT_NAME);
 
 				for (int i = 0; i < workers; i++)
 					system.actorOf(Indexer.props(), Indexer.DEFAULT_NAME + i);
 
-				ActorRef profiler = system.actorOf(Profiler.props(), Profiler.DEFAULT_NAME);
-				
 				ActorRef storekeeper = system.actorOf(Storekeeper.props(), Storekeeper.DEFAULT_NAME);
+				
+				ActorRef profiler = system.actorOf(Profiler.props(), Profiler.DEFAULT_NAME);
 				
 				for (int i = 0; i < workers; i++)
 					system.actorOf(Validator.props(storekeeper), Validator.DEFAULT_NAME + i);

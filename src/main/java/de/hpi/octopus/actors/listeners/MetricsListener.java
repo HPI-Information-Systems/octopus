@@ -62,8 +62,8 @@ public class MetricsListener extends AbstractActor {
 	private void logMetrics(ClusterMetricsChanged clusterMetrics) {
 		for (NodeMetrics nodeMetrics : clusterMetrics.getNodeMetrics()) {
 			if (nodeMetrics.address().equals(this.cluster.selfAddress())) {
-				logHeap(nodeMetrics);
-				logCpu(nodeMetrics);
+				this.logHeap(nodeMetrics);
+				this.logCpu(nodeMetrics);
 			}
 		}
 	}

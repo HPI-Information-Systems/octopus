@@ -16,6 +16,7 @@ import de.hpi.octopus.actors.DependencySteward;
 import de.hpi.octopus.actors.DependencySteward.CandidateRequestMessage;
 import de.hpi.octopus.actors.DependencySteward.FinalizeMessage;
 import de.hpi.octopus.actors.DependencySteward.InvalidFDsMessage;
+import de.hpi.octopus.actors.listeners.ProgressListener;
 import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
 import de.hpi.octopus.actors.slaves.Validator.TerminateMessage;
 import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
@@ -187,6 +188,9 @@ public class Profiler extends AbstractMaster {
 			this.prioritizedSamplingEfficiencies.add(samplingEfficiency);
 		}
 		this.dependencyStewardRing = new DependencyStewardRing(this.dependencyStewards.length);
+		
+		// Tell the progress listener to wait for the dependency stewards
+		this.context().actorSelection("/user/" + ProgressListener.DEFAULT_NAME).tell(new ProgressListener.StewardsMessage(numAttributes), ActorRef.noSender());
 		
 		// Assign initial work to all validators
 		while (!this.idleValidators.isEmpty())
@@ -380,14 +384,14 @@ public class Profiler extends AbstractMaster {
 		if (!this.isDone(stewardAttribute))
 			return;
 		
+		// Tell the dependency steward to finalize, i.e., write results and terminate	
+		this.dependencyStewards[stewardAttribute].tell(new FinalizeMessage("results", this.dataset), this.self());
+
 		// Make the dependency steward permanently busy so that it is never asked for more candidates
 		this.dependencyStewardRing.increaseBusy(stewardAttribute);
 		
 		// Remove the dependency steward from the local list so that we do not forward any further results to it
 		this.dependencyStewards[stewardAttribute] = null;
-		
-		// Tell the dependency steward to finalize, i.e., write results and terminate	
-		this.sender().tell(new FinalizeMessage("results", this.dataset), this.self());
 		
 		System.out.println("Done " + stewardAttribute);
 		for (int i = 0; i < this.dataset.getNumAtrributes(); i++)
@@ -418,7 +422,7 @@ public class Profiler extends AbstractMaster {
 		// Check if the profiling is done
 		if (this.isDone()) {
 			// Terminate the profiling hierarchy
-			this.self().tell(PoisonPill.getInstance(), this.self());
+			this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
 			for (ActorRef busyValidator : this.busyValidators.keySet())
 				busyValidator.tell(new TerminateMessage(), ActorRef.noSender());
 			for (ActorRef idleValidator : this.idleValidators)
