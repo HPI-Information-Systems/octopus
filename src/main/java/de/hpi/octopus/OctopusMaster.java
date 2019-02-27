@@ -8,9 +8,11 @@ import com.typesafe.config.Config;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import akka.cluster.Cluster;
+import de.hpi.octopus.actors.Reaper;
 import de.hpi.octopus.actors.Storekeeper;
 import de.hpi.octopus.actors.listeners.ProgressListener;
 import de.hpi.octopus.actors.masters.Preprocessor;
+import de.hpi.octopus.actors.masters.Preprocessor.PreprocessingTaskMessage;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.slaves.Indexer;
 import de.hpi.octopus.actors.slaves.Validator;
@@ -29,6 +31,8 @@ public class OctopusMaster extends OctopusSystem {
 		Cluster.get(system).registerOnMemberUp(new Runnable() {
 			@Override
 			public void run() {
+				ActorRef reaper = system.actorOf(Reaper.props(), Reaper.DEFAULT_NAME);
+				
 			//	ActorRef clusterListener = system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
 			//	ActorRef metricsListener = system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
 				ActorRef progressListener = system.actorOf(ProgressListener.props(), ProgressListener.DEFAULT_NAME);
@@ -50,14 +54,6 @@ public class OctopusMaster extends OctopusSystem {
 			//	ActorRef testActor2 = system.actorOf(TestActor.props(testActor1), TestActor.DEFAULT_NAME + 2);
 			//	int[] data = {1,2,3};
 			//	testActor2.tell(new TestActor.TestMessage(data), ActorRef.noSender());
-				
-			//	int maxInstancesPerNode = workers; // TODO: Every node gets the same number of workers, so it cannot be a parameter for the slave nodes
-			//	Set<String> useRoles = new HashSet<>(Arrays.asList("master", "slave"));
-			//	ActorRef router = system.actorOf(
-			//		new ClusterRouterPool(
-			//			new AdaptiveLoadBalancingPool(SystemLoadAverageMetricsSelector.getInstance(), 0),
-			//			new ClusterRouterPoolSettings(10000, workers, true, new HashSet<>(Arrays.asList("master", "slave"))))
-			//		.props(Props.create(Worker.class)), "router");
 			}
 		});
 		
@@ -70,14 +66,6 @@ public class OctopusMaster extends OctopusSystem {
 				"/home/thorsten/Data/Development/workspace/papenbrock/HyFDTestRunner/data/", ".csv",
 				true, StandardCharsets.UTF_8, ',', '"', '\\', "", false, true, 100, 0, true);
 		
-		system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new Preprocessor.PreprocessingTaskMessage(dataset), ActorRef.noSender());
-		
-		//system.actorSelection("/user/" + Profiler.DEFAULT_NAME).tell(new Profiler.DiscoveryTaskMessage(attributes, null, null), ActorRef.noSender());
-		
-		line = scanner.nextLine();
-		System.out.println(line);
-		scanner.close();
-		
-		system.terminate();
+		system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new PreprocessingTaskMessage(dataset), ActorRef.noSender());
 	}
 }

@@ -5,6 +5,7 @@ import com.typesafe.config.Config;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import akka.cluster.Cluster;
+import de.hpi.octopus.actors.Reaper;
 import de.hpi.octopus.actors.Storekeeper;
 import de.hpi.octopus.actors.slaves.Indexer;
 import de.hpi.octopus.actors.slaves.Validator;
@@ -22,8 +23,10 @@ public class OctopusSlave extends OctopusSystem {
 		Cluster.get(system).registerOnMemberUp(new Runnable() {
 			@Override
 			public void run() {
-			//	system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
-			//	system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
+				ActorRef reaper = system.actorOf(Reaper.props(), Reaper.DEFAULT_NAME);
+				
+			//	ActorRef clusterListener = system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
+			//	ActorRef metricsListener = system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
 
 				for (int i = 0; i < workers; i++)
 					system.actorOf(Indexer.props(), Indexer.DEFAULT_NAME + i);

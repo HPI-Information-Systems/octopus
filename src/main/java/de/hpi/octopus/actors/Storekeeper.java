@@ -74,7 +74,11 @@ public class Storekeeper extends AbstractLoggingActor {
 
 	@Override
 	public void preStart() {
+		// Subscribe to cluster events in order to find the cluster's master
 		this.cluster.subscribe(this.self(), MemberUp.class);
+		
+		// Register at this actor system's reaper
+		Reaper.watchWithDefaultReaper(this);
 	}
 
 	@Override

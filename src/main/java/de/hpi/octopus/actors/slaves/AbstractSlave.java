@@ -7,6 +7,7 @@ import akka.cluster.ClusterEvent.MemberUp;
 import akka.cluster.Member;
 import akka.cluster.MemberStatus;
 import de.hpi.octopus.OctopusMaster;
+import de.hpi.octopus.actors.Reaper;
 import de.hpi.octopus.actors.masters.AbstractMaster;
 
 public abstract class AbstractSlave extends AbstractLoggingActor {
@@ -27,7 +28,11 @@ public abstract class AbstractSlave extends AbstractLoggingActor {
 	
 	@Override
 	public void preStart() {
+		// Subscribe to cluster events in order to register at the cluster's master
 		this.cluster.subscribe(this.self(), MemberUp.class);
+		
+		// Register at this actor system's reaper
+		Reaper.watchWithDefaultReaper(this);
 	}
 
 	@Override

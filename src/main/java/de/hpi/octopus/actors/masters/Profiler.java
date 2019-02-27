@@ -17,6 +17,7 @@ import de.hpi.octopus.actors.DependencySteward.CandidateRequestMessage;
 import de.hpi.octopus.actors.DependencySteward.FinalizeMessage;
 import de.hpi.octopus.actors.DependencySteward.InvalidFDsMessage;
 import de.hpi.octopus.actors.listeners.ProgressListener;
+import de.hpi.octopus.actors.slaves.Validator;
 import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
 import de.hpi.octopus.actors.slaves.Validator.TerminateMessage;
 import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
@@ -105,6 +106,8 @@ public class Profiler extends AbstractMaster {
 	private ActorRef[] dependencyStewards;							// List of non-finished dependency stewards
 	private DependencyStewardRing dependencyStewardRing;			// Ring of dependency stewards to find the next steward serving new validation tasks
 	
+	private int children = 0;
+	
 	private SamplingEfficiency[] samplingEfficiencies;
 	private PriorityQueue<SamplingEfficiency> prioritizedSamplingEfficiencies;
 
@@ -142,21 +145,45 @@ public class Profiler extends AbstractMaster {
 	protected void handle(Terminated message) {
 		super.handle(message);
 		
-		this.idleValidators.remove(message.getActor());
-		this.waitingValidators.remove(message.getActor());
-		Object work = this.busyValidators.remove(message.getActor());
-		if (work != null) {
-			if (this.idleValidators.isEmpty()) {
-				this.unassignedWork.add(work);
-				return;
-			}
+		String actorName = message.getActor().path().name();
+		
+		// If a dependency steward terminates, it is done and we have one child less
+		if (actorName.contains(DependencySteward.DEFAULT_NAME)) {
+			this.children--;
 			
-			ActorRef validator = this.idleValidators.poll();
-			this.busyValidators.put(validator, work);
-			validator.tell(work, this.self());
+			// Terminate the profiling if all children, i.e., all dependency stewards are done
+			if (this.children == 0) {
+				this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
+				for (ActorRef validator : this.busyValidators.keySet())
+					validator.tell(new TerminateMessage(), ActorRef.noSender());
+				for (ActorRef validator : this.idleValidators)
+					validator.tell(new TerminateMessage(), ActorRef.noSender());
+				for (ActorRef validator : this.waitingValidators)
+					validator.tell(new TerminateMessage(), ActorRef.noSender());
+				
+				this.log().info("Finished discovery task.");
+			}
+		}
+		
+		// If a validator terminates, we forget him and might need to reschedule his work
+		if (actorName.contains(Validator.DEFAULT_NAME)) {
+			this.idleValidators.remove(message.getActor());
+			this.waitingValidators.remove(message.getActor());
+			Object work = this.busyValidators.remove(message.getActor());
+			
+			if (work != null) {
+				if (this.idleValidators.isEmpty()) {
+					this.unassignedWork.add(work);
+					return;
+				}
+				
+				ActorRef validator = this.idleValidators.poll();
+				this.busyValidators.put(validator, work);
+				validator.tell(work, this.self());
+			}
 		}
 	}
-
+	
 	protected void handle(DiscoveryTaskMessage message) throws Exception {
 		// Handle edge cases
 		if (this.dataset != null) {
@@ -175,6 +202,7 @@ public class Profiler extends AbstractMaster {
 		
 		// Start one dependency steward for each attribute
 		int numAttributes = this.dataset.getNumAtrributes();
+		this.children = numAttributes;
 		this.dependencyStewards = new ActorRef[numAttributes];
 		this.samplingEfficiencies = new SamplingEfficiency[numAttributes];
 		this.prioritizedSamplingEfficiencies = new PriorityQueue<SamplingEfficiency>(numAttributes);
@@ -182,6 +210,7 @@ public class Profiler extends AbstractMaster {
 			this.dependencyStewards[i] = this.context().actorOf(
 					DependencySteward.props(i, numAttributes, -1), 
 					DependencySteward.DEFAULT_NAME + i); // TODO: the maxDepth i.e. max FD size should be a parameter
+			this.context().watch(this.dependencyStewards[i]);
 			
 			SamplingEfficiency samplingEfficiency = new SamplingEfficiency(i);
 			this.samplingEfficiencies[i] = samplingEfficiency;
@@ -203,7 +232,7 @@ public class Profiler extends AbstractMaster {
 	
 	protected void handle(ValidationResultMessage validationResultMessage) {
 		ActorRef validator = this.sender();
-		ValidationMessage validationMessage = (ValidationMessage) this.busyValidators.remove(validator);
+		ValidationMessage validationMessage = (ValidationMessage) this.busyValidators.get(validator);
 		
 		int validationRequester = validationMessage.getRhs(); // Who asked for this validation
 		
@@ -227,10 +256,11 @@ public class Profiler extends AbstractMaster {
 			}
 		}
 		
-		// Check if the validation requester is done and, if true, finish that dependency steward
+		// Check if the validation requester is done and, if true, finish that dependency steward; finish the discovery if done entirely
 		this.finishStewardIfDone(validationRequester);
 		
 		// Assign new work to the validator
+		this.busyValidators.remove(validator);
 		this.assign(validator);
 	}
 	
@@ -292,7 +322,7 @@ public class Profiler extends AbstractMaster {
 		if (message.getLhss().length == 0)
 			this.dependencyStewardRing.setCandidates(message.getRhs(), false);
 		
-		// Check if the candidate provider is done and, if true, finish that dependency steward
+		// Check if the validation requester is done and, if true, finish that dependency steward; finish the discovery if done entirely
 		this.finishStewardIfDone(message.getRhs());
 		
 		// Get the validator that is waiting for this candidate message
@@ -379,10 +409,10 @@ public class Profiler extends AbstractMaster {
 		this.idleValidators.add(validator);
 	}
 
-	private void finishStewardIfDone(int stewardAttribute) {
+	private boolean finishStewardIfDone(int stewardAttribute) {
 		// Check if the dependency steward is actually done
 		if (!this.isDone(stewardAttribute))
-			return;
+			return false;
 		
 		// Tell the dependency steward to finalize, i.e., write results and terminate	
 		this.dependencyStewards[stewardAttribute].tell(new FinalizeMessage("results", this.dataset), this.self());
@@ -393,7 +423,7 @@ public class Profiler extends AbstractMaster {
 		// Remove the dependency steward from the local list so that we do not forward any further results to it
 		this.dependencyStewards[stewardAttribute] = null;
 		
-		System.out.println("Done " + stewardAttribute);
+/*		System.out.println("Done " + stewardAttribute);
 		for (int i = 0; i < this.dataset.getNumAtrributes(); i++)
 			if (this.dependencyStewards[i] == null)
 				System.out.print(1);
@@ -418,18 +448,8 @@ public class Profiler extends AbstractMaster {
 			else
 				System.out.print(0);
 		System.out.println(" validation");
-		
-		// Check if the profiling is done
-		if (this.isDone()) {
-			// Terminate the profiling hierarchy
-			this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
-			for (ActorRef busyValidator : this.busyValidators.keySet())
-				busyValidator.tell(new TerminateMessage(), ActorRef.noSender());
-			for (ActorRef idleValidator : this.idleValidators)
-				idleValidator.tell(new TerminateMessage(), ActorRef.noSender());
-			
-			this.log().info("Finished discovery task.");
-		}
+*/		
+		return true;
 	}
 	
 	private boolean isDone(int attribute) {
@@ -457,13 +477,4 @@ public class Profiler extends AbstractMaster {
 		
 		return true;
 	}
-	
-	private boolean isDone() {
-		// The profiling is done if all dependency stewards are done
-		for (ActorRef steward : this.dependencyStewards)
-			if (steward != null)
-				return false;
-		return true;
-	}
-	
 }

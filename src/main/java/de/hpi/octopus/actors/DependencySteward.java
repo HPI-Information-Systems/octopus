@@ -91,6 +91,12 @@ public class DependencySteward extends AbstractLoggingActor {
 	// Actor Lifecycle //
 	/////////////////////
 
+	@Override
+	public void preStart() {
+		// Register at this actor system's reaper
+		Reaper.watchWithDefaultReaper(this);
+	}
+
 	////////////////////
 	// Actor Behavior //
 	////////////////////
@@ -108,7 +114,7 @@ public class DependencySteward extends AbstractLoggingActor {
 	private <T> void time(Consumer<T> handle, T message, int size) {
 		long t = System.currentTimeMillis();
 		handle.accept(message);
-		this.log().info("Processed {} in {} ms given a message size of {}.", message.getClass().getSimpleName(), System.currentTimeMillis() - t, size);
+//		this.log().info("Processed {} in {} ms given a message size of {}.", message.getClass().getSimpleName(), System.currentTimeMillis() - t, size);
 	}
 	
 	protected void handle(CandidateRequestMessage message) {

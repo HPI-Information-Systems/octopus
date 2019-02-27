@@ -4,7 +4,6 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.function.Function;
 
@@ -127,7 +126,7 @@ public class Validator extends AbstractSlave {
 	private <T> void time(Function<T, Integer> handle, T message) {
 		long t = System.currentTimeMillis();
 		int numNonFDs = handle.apply(message);
-		this.log().info("Processed {} in {} ms yielding {} non-FDs.", message.getClass().getSimpleName(), System.currentTimeMillis() - t, numNonFDs);
+//		this.log().info("Processed {} in {} ms yielding {} non-FDs.", message.getClass().getSimpleName(), System.currentTimeMillis() - t, numNonFDs);
 	}
 	
 	private void handle(TerminateMessage message) {

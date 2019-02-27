@@ -64,9 +64,10 @@ public class DatasetReader extends AbstractLoggingActor {
 	/////////////////////
 	// Actor Lifecycle //
 	/////////////////////
-	
+
 	@Override
 	public void preStart() throws Exception {
+		// Open the input and start reading first lines into local cache
 		this.relationalInputGenerator = new DefaultFileInputGenerator(new ConfigurationSettingFileInput(
 				this.dataset.getDatasetPathNameEnding(), true, this.dataset.getAttributeSeparator(), this.dataset.getAttributeQuote(), 
 				this.dataset.getAttributeEscape(), this.dataset.isAttributeStrictQuotes(), this.dataset.isAttributeIgnoreLeadingWhitespace(), 
@@ -76,6 +77,9 @@ public class DatasetReader extends AbstractLoggingActor {
 		this.columnNames = this.relationalInputReader.columnNames().toArray(new String[0]);
 		
 		this.read();
+		
+		// Register at this actor system's reaper
+		Reaper.watchWithDefaultReaper(this);
 	}
 
 	@Override

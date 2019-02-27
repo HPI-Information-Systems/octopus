@@ -10,6 +10,9 @@ import java.util.Map;
 import akka.actor.ActorRef;
 import akka.actor.Props;
 import de.hpi.octopus.actors.masters.Preprocessor;
+import de.hpi.octopus.actors.masters.Preprocessor.IndexingDoneMessage;
+import de.hpi.octopus.actors.masters.Preprocessor.IndexingResultMessage;
+import de.hpi.octopus.actors.masters.Preprocessor.ReallocationMessage;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
@@ -78,7 +81,7 @@ public class Indexer extends AbstractSlave {
 	/////////////////////
 	// Actor Lifecycle //
 	/////////////////////
-	
+
 	////////////////////
 	// Actor Behavior //
 	////////////////////
@@ -127,7 +130,7 @@ public class Indexer extends AbstractSlave {
 		}		
 		this.attribute2offset.put(attribute, row);
 		
-		this.sender().tell(new Preprocessor.IndexingDoneMessage(message.getWatermark()), this.self());
+		this.sender().tell(new IndexingDoneMessage(message.getWatermark()), this.self());
 	}
 	
 	private void handle(FinalizeMessage message) throws IOException {
@@ -152,7 +155,7 @@ public class Indexer extends AbstractSlave {
 		
 		int inputLength = this.attribute2offset.remove(attribute);
 		
-		this.sender().tell(new Preprocessor.IndexingResultMessage(attribute, pli, inputLength, message.getWatermark()), this.self());
+		this.sender().tell(new IndexingResultMessage(attribute, pli, inputLength, message.getWatermark()), this.self());
 	}
 	
 	private void handle(SendAttributesMessage message) {
@@ -180,6 +183,6 @@ public class Indexer extends AbstractSlave {
 			this.attribute2value2positions.put(attribute, message.getAttribute2value2positions().get(attribute));
 		}
 		
-		this.sender().tell(new Preprocessor.ReallocationMessage(attributes, message.getWatermark()), this.self());
+		this.sender().tell(new ReallocationMessage(attributes, message.getWatermark()), this.self());
 	}
 }

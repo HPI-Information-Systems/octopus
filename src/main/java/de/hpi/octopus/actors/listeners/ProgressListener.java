@@ -6,6 +6,7 @@ import akka.actor.AbstractLoggingActor;
 import akka.actor.ActorRef;
 import akka.actor.PoisonPill;
 import akka.actor.Props;
+import de.hpi.octopus.actors.Reaper;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -55,7 +56,13 @@ public class ProgressListener extends AbstractLoggingActor {
 	/////////////////////
 	// Actor Lifecycle //
 	/////////////////////
-	
+
+	@Override
+	public void preStart() {
+		// Register at this actor system's reaper
+		Reaper.watchWithDefaultReaper(this);
+	}
+
 	////////////////////
 	// Actor Behavior //
 	////////////////////

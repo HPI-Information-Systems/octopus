@@ -4,6 +4,7 @@ import java.io.Serializable;
 
 import akka.actor.AbstractLoggingActor;
 import akka.actor.Terminated;
+import de.hpi.octopus.actors.Reaper;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -27,7 +28,13 @@ public abstract class AbstractMaster extends AbstractLoggingActor {
 	/////////////////////
 	// Actor Lifecycle //
 	/////////////////////
-	
+
+	@Override
+	public void preStart() {
+		// Register at this actor system's reaper
+		Reaper.watchWithDefaultReaper(this);
+	}
+
 	////////////////////
 	// Actor Behavior //
 	////////////////////
