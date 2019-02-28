@@ -26,12 +26,12 @@ public class FDTreeTest {
 	public void testInitial() {
 		System.out.println("Start testing initial");
 		
-		FDTree fdtree = new FDTree(5);
+		FDTree fdtree = new FDTree(5, 0);
 		
 		BitSet lhs = new BitSet();
 		
 		lhs.set(0);
-		assertTrue(fdtree.containsLhsOrGeneralization(lhs));
+		assertFalse(fdtree.containsLhsOrGeneralization(lhs));
 		lhs.clear();
 		
 		lhs.set(1);
@@ -55,14 +55,9 @@ public class FDTreeTest {
 	public void testRemoveInitial() {
 		System.out.println("Start testing remove initial");
 		
-		FDTree fdtree = new FDTree(5);
+		FDTree fdtree = new FDTree(5, 0);
 		
 		BitSet lhs = new BitSet();
-		
-		lhs.set(0);
-		fdtree.removeLhs(lhs);
-		assertFalse(fdtree.containsLhsOrGeneralization(lhs));
-		lhs.clear();
 		
 		lhs.set(1);
 		fdtree.removeLhs(lhs);
@@ -84,11 +79,11 @@ public class FDTreeTest {
 		assertFalse(fdtree.containsLhsOrGeneralization(lhs));
 		lhs.clear();
 		
-		fdtree = new FDTree(5);
+		fdtree = new FDTree(5, 0);
 		lhs.set(0, 5);
 		assertTrue(fdtree.containsLhsOrGeneralization(lhs));
 		List<BitSet> lhss = fdtree.getLhsAndGeneralizations(lhs);
-		assertTrue(lhss.size() == 5);
+		assertTrue(lhss.size() == 4);
 		for (BitSet l : lhss)
 			fdtree.removeLhs(l);
 		assertFalse(fdtree.containsLhsOrGeneralization(lhs));
@@ -99,7 +94,7 @@ public class FDTreeTest {
 	public void testFill() {
 		System.out.println("Start testing fill");
 		
-		FDTree fdtree = new FDTree(5);
+		FDTree fdtree = new FDTree(5, 0);
 		BitSet lhs = new BitSet();
 		lhs.set(0, 5);
 		List<BitSet> lhss = fdtree.getLhsAndGeneralizations(lhs);
@@ -139,7 +134,7 @@ public class FDTreeTest {
 	public void testGetGeneralizations() {
 		System.out.println("Start testing get generalizations");
 		
-		FDTree fdtree = new FDTree(5);
+		FDTree fdtree = new FDTree(5, 0);
 		BitSet lhs = new BitSet();
 		lhs.set(0, 5);
 		List<BitSet> lhss = fdtree.getLhsAndGeneralizations(lhs);

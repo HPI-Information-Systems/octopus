@@ -232,7 +232,10 @@ public class Profiler extends AbstractMaster {
 	
 	protected void handle(ValidationResultMessage validationResultMessage) {
 		ActorRef validator = this.sender();
-		ValidationMessage validationMessage = (ValidationMessage) this.busyValidators.get(validator);
+		ValidationMessage validationMessage = (ValidationMessage) this.busyValidators.remove(validator);
+		
+		// Consider the current validator as idle; this is important, because if the profiling is done, we need to notify all validators that they can terminate
+		this.idleValidators.add(validator);
 		
 		int validationRequester = validationMessage.getRhs(); // Who asked for this validation
 		
@@ -260,8 +263,7 @@ public class Profiler extends AbstractMaster {
 		this.finishStewardIfDone(validationRequester);
 		
 		// Assign new work to the validator
-		this.busyValidators.remove(validator);
-		this.assign(validator);
+		this.assign(this.idleValidators.poll());
 	}
 	
 	protected void handle(SamplingResultMessage samplingResultMessage) {

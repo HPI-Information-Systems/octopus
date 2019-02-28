@@ -248,22 +248,23 @@ public class Validator extends AbstractSlave {
 			int[] lhs = toArray(lhsBitSet);
 			
 			int[] violation = this.findViolation(lhs, rhs);
-			if (violation != null) {
-				// Add the violated FD to the container of invalid FDs
-			//	invalidFDs.add(new FunctionalDependency(lhsBitSet, rhs)); // Not necessary, because we compare the two records and find and add this non-FD again 
-				
-				// Compare the two records that caused the violation to find violations for other FDs (= execute comparison suggestion)
-				BitSet invalidLhs = new BitSet(this.plis.length);
-				IntList invalidRhss = new IntArrayList();
-				for (int attribute = 0; attribute < this.plis.length; attribute++) {
-					if (this.isMatch(violation[0], violation[1], attribute))
-						invalidLhs.set(attribute);
-					else
-						invalidRhss.add(attribute);
-				}
-				for (int invalidRhs : invalidRhss)
-					invalidFDs.add(new FunctionalDependency(invalidLhs, invalidRhs));
+			if (violation == null)
+				continue;
+			
+			// Add the violated FD to the container of invalid FDs
+		//	invalidFDs.add(new FunctionalDependency(lhsBitSet, rhs)); // Not necessary, because we compare the two records and find and add this non-FD again 
+			
+			// Compare the two records that caused the violation to find violations for other FDs (= execute comparison suggestion)
+			BitSet invalidLhs = new BitSet(this.plis.length);
+			IntList invalidRhss = new IntArrayList();
+			for (int attribute = 0; attribute < this.plis.length; attribute++) {
+				if (this.isMatch(violation[0], violation[1], attribute))
+					invalidLhs.set(attribute);
+				else
+					invalidRhss.add(attribute);
 			}
+			for (int invalidRhs : invalidRhss)
+				invalidFDs.add(new FunctionalDependency(invalidLhs, invalidRhs));
 		}
 		
 		// Send the result to the sender of the validation message
@@ -288,7 +289,7 @@ public class Validator extends AbstractSlave {
 					continue;
 				}
 				
-				// If the lhs value hash is known, test if the rhs is the same.
+				// If the lhs value hash is known, test if the rhs value is the same.
 				if (lhsHash2rhsValue.get(lhsHash)[0] == rhsValue) {
 					continue;
 				}
@@ -312,17 +313,17 @@ public class Validator extends AbstractSlave {
 		return hash;
 	}
 
-	private boolean isMatch(final int recordID1, final int recordID2, final int attribute) {
-		return isEqual(this.records[recordID1][attribute], this.records[recordID2][attribute]);
-	}
-
 	private boolean isMatch(final int recordID1, final int recordID2, final int[] attributes) {
 		for (int attribute : attributes)
 			if (isDifferent(this.records[recordID1][attribute], this.records[recordID2][attribute]))
 				return false;
 		return true;
 	}
-	
+
+	private boolean isMatch(final int recordID1, final int recordID2, final int attribute) {
+		return isEqual(this.records[recordID1][attribute], this.records[recordID2][attribute]);
+	}
+
 	private static boolean isEqual(final int value1, final int value2) {
 		return (value1 == value2) && (value1 != -1);
 	}

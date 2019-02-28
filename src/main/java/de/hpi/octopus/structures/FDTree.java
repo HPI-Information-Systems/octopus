@@ -16,19 +16,23 @@ public class FDTree extends FDTreeElement {
 	protected FDTreeLeaf first;
 	protected FDTreeLeaf last;
 	
-	public FDTree(int numAttributes) {
+	public FDTree(int numAttributes, int rhsAttribute) {
 		this.depth = 1;
 		this.numAttributes = numAttributes;
 		
-		this.addMostGeneralDependencies();
+		this.addMostGeneralDependencies(rhsAttribute);
 	}
 
-	protected void addMostGeneralDependencies() {
+	protected void addMostGeneralDependencies(int rhsAttribute) {
 		this.children = new FDTreeElement[this.numAttributes];
+		BitSet lhs = new BitSet(this.numAttributes);
 		for (int i = 0; i < this.numAttributes; i++) {
-			BitSet lhs = new BitSet(this.numAttributes);
+			if (i == rhsAttribute)
+				continue;
+			
 			lhs.set(i);
 			this.addLhs(lhs);
+			lhs.clear(i);
 		}
 	}
 	
@@ -107,11 +111,13 @@ public class FDTree extends FDTreeElement {
 		FDTreeLeaf leaf = (FDTreeLeaf) element.getChildren()[attribute];
 		
 		// Add the last element to the linked list of unannounced leaf elements
-		if (this.first == null)
+		if (this.first == null) {
 			this.first = leaf;
-		else
+		}
+		else {
 			this.last.setNext(leaf);
-			
+			leaf.setPrevious(this.last);
+		}
 		this.last = leaf;
 		
 		// Adjust the depth of this tree

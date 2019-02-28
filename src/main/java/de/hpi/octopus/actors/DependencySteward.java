@@ -39,7 +39,7 @@ public class DependencySteward extends AbstractLoggingActor {
 
 	public DependencySteward(int rhs, int numAttributes, int maxDepth) {
 		this.rhs = rhs;
-		this.fds = new FDTree(numAttributes);
+		this.fds = new FDTree(numAttributes, rhs);
 		
 		this.maxDepth = maxDepth;
 	}
@@ -126,7 +126,7 @@ public class DependencySteward extends AbstractLoggingActor {
 		int numAttributes = this.fds.getNumAttributes();
 		int numUpdates = 0;
 		
-		// Prune the candidate from the FDTree and infer new candidates
+		// Prune the candidates from the FDTree and infer new candidates
 		for (BitSet invalidLhs : message.getInvalidLhss()) {
 			for (BitSet specLhs : this.fds.getLhsAndGeneralizations(invalidLhs)) {
 				this.fds.removeLhs(specLhs);
@@ -135,7 +135,7 @@ public class DependencySteward extends AbstractLoggingActor {
 				if ((this.maxDepth > 0) && (specLhs.cardinality() >= this.maxDepth))
 					continue;
 				
-				for (int attribute = numAttributes - 1; attribute >= 0; attribute--) {
+				for (int attribute = 0; attribute < numAttributes; attribute++) {
 					if (invalidLhs.get(attribute) || (attribute == this.rhs))
 						continue;
 					
