@@ -1,12 +1,19 @@
 package de.hpi.octopus.actors.listeners;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.BitSet;
 
 import akka.actor.AbstractLoggingActor;
 import akka.actor.ActorRef;
 import akka.actor.PoisonPill;
 import akka.actor.Props;
 import de.hpi.octopus.actors.Reaper;
+import de.hpi.octopus.structures.Dataset;
+import de.metanome.algorithm_integration.ColumnCombination;
+import de.metanome.algorithm_integration.ColumnIdentifier;
+import de.metanome.algorithm_integration.result_receiver.FunctionalDependencyResultReceiver;
+import de.metanome.algorithm_integration.results.FunctionalDependency;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -18,10 +25,14 @@ public class ProgressListener extends AbstractLoggingActor {
 
 	public static final String DEFAULT_NAME = "progressListener";
 
-	public static Props props() {
-		return Props.create(ProgressListener.class);
+	public static Props props(FunctionalDependencyResultReceiver resultReceiver) {
+		return Props.create(ProgressListener.class, () -> new ProgressListener(resultReceiver));
 	}
-
+	
+	public ProgressListener(FunctionalDependencyResultReceiver resultReceiver) {
+		this.resultReceiver = resultReceiver;
+	}
+	
 	////////////////////
 	// Actor Messages //
 	////////////////////
@@ -43,6 +54,9 @@ public class ProgressListener extends AbstractLoggingActor {
 		private static final long serialVersionUID = -7509054641716826606L;
 		private FinishedMessage() {}
 		private int numFds;
+		private BitSet[] lhss;
+		private int rhs;
+		private Dataset dataset;
 	}
 
 	/////////////////
@@ -52,6 +66,7 @@ public class ProgressListener extends AbstractLoggingActor {
 	private long startTime;
 	private int numFDs;
 	private int activeStewards;
+	private FunctionalDependencyResultReceiver resultReceiver;
 	
 	/////////////////////
 	// Actor Lifecycle //
@@ -93,6 +108,19 @@ public class ProgressListener extends AbstractLoggingActor {
 		if (this.activeStewards == 0) {
 			this.log().info("Found {} FDs in {} ms", this.numFDs, System.currentTimeMillis() - this.startTime);
 			this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
+		}
+		
+		if ((this.resultReceiver != null) && (message.getLhss() != null)) {
+			ColumnIdentifier[] columnIndentifiers = message.getDataset().getColumnIdentifiers();
+			
+			ColumnIdentifier rhs = columnIndentifiers[message.getRhs()];
+			for (BitSet lhsAttributes : message.getLhss()) {
+				ArrayList<ColumnIdentifier> lhs = new ArrayList<>(lhsAttributes.cardinality());
+				for (int i = lhsAttributes.nextSetBit(0); i >= 0; i = lhsAttributes.nextSetBit(i + 1))
+					lhs.add(columnIndentifiers[i]);
+				
+				this.resultReceiver.acceptedResult(new FunctionalDependency(new ColumnCombination(lhs.toArray(new ColumnIdentifier[0])), rhs));
+			}
 		}
 	}
 }

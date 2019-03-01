@@ -1,7 +1,8 @@
 package de.hpi.octopus;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.typesafe.config.Config;
 
@@ -16,13 +17,16 @@ import de.hpi.octopus.actors.masters.Preprocessor.PreprocessingTaskMessage;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.slaves.Indexer;
 import de.hpi.octopus.actors.slaves.Validator;
-import de.hpi.octopus.structures.DatasetDescriptor;
+import de.metanome.algorithm_integration.input.RelationalInputGenerator;
+import de.metanome.algorithm_integration.result_receiver.FunctionalDependencyResultReceiver;
+import scala.concurrent.Await;
+import scala.concurrent.duration.Duration;
 
 public class OctopusMaster extends OctopusSystem {
 	
 	public static final String MASTER_ROLE = "master";
 
-	public static void start(String actorSystemName, int workers, String host, int port) {
+	public static void start(String actorSystemName, int workers, String host, int port, RelationalInputGenerator relationalInputGenerator, FunctionalDependencyResultReceiver resultReceiver, boolean startPaused) {
 
 		final Config config = createConfiguration(actorSystemName, MASTER_ROLE, host, port, host, port);
 		
@@ -35,7 +39,7 @@ public class OctopusMaster extends OctopusSystem {
 				
 			//	ActorRef clusterListener = system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
 			//	ActorRef metricsListener = system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
-				ActorRef progressListener = system.actorOf(ProgressListener.props(), ProgressListener.DEFAULT_NAME);
+				ActorRef progressListener = system.actorOf(ProgressListener.props(resultReceiver), ProgressListener.DEFAULT_NAME);
 				
 				ActorRef preprocessor = system.actorOf(Preprocessor.props(), Preprocessor.DEFAULT_NAME);
 
@@ -54,18 +58,30 @@ public class OctopusMaster extends OctopusSystem {
 			//	ActorRef testActor2 = system.actorOf(TestActor.props(testActor1), TestActor.DEFAULT_NAME + 2);
 			//	int[] data = {1,2,3};
 			//	testActor2.tell(new TestActor.TestMessage(data), ActorRef.noSender());
+				
+				if (!startPaused) {
+					int bufferSize = 100; // TODO: make parameter
+					system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new PreprocessingTaskMessage(relationalInputGenerator, bufferSize), ActorRef.noSender());
+				}
+					
 			}
 		});
 		
-		final Scanner scanner = new Scanner(System.in);
-		String line = scanner.nextLine();
-		System.out.println(line);
+		if (startPaused) {
+			final Scanner scanner = new Scanner(System.in);
+			String line = scanner.nextLine();
+			System.out.println(line);
+			
+			int bufferSize = 100; // TODO: make parameter
+			system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new PreprocessingTaskMessage(relationalInputGenerator, bufferSize), ActorRef.noSender());
+		}
 		
-		DatasetDescriptor dataset = new DatasetDescriptor(
-				"ncvoter_Statewide_10001r_71c",//"ncvoter_Statewide_1024001r_71c", 
-				"/home/thorsten/Data/Development/workspace/papenbrock/HyFDTestRunner/data/", ".csv",
-				true, StandardCharsets.UTF_8, ',', '"', '\\', "", false, true, 100, 0, true);
+		try {
+			Await.ready(system.whenTerminated(), Duration.create(1, TimeUnit.MINUTES));
+		} catch (TimeoutException | InterruptedException e) {
+			e.printStackTrace();
+		}
 		
-		system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new PreprocessingTaskMessage(dataset), ActorRef.noSender());
+		System.out.println("The end!");
 	}
 }

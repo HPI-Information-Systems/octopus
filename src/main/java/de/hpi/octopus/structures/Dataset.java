@@ -1,5 +1,11 @@
 package de.hpi.octopus.structures;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -8,6 +14,7 @@ import akka.event.LoggingAdapter;
 import de.hpi.octopus.actors.Storekeeper.PlisMessage;
 import de.hpi.octopus.actors.masters.Profiler.DiscoveryTaskMessage;
 import de.hpi.octopus.actors.slaves.Validator.DataMessage;
+import de.metanome.algorithm_integration.ColumnIdentifier;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -17,10 +24,10 @@ import lombok.Getter;
 public class Dataset {
 
 	private final int[][][] plis;
-	private final String[] schema;
+	private final String relationName;
+	private final String[] columnNames;
 	private final int numRecords;
 	private final int[][] records;
-	private final String datasetName;
 
 	public int getNumAtrributes() {
 		return this.plis.length;
@@ -28,7 +35,7 @@ public class Dataset {
 	
 	public Dataset(DiscoveryTaskMessage message, LoggingAdapter log) {
 		int[][][] plis = message.getPlis();
-		String[] schema = message.getSchema();
+		String[] schema = message.getColumnNames();
 		int numRecords = message.getNumRecords();
 		
 		// Debug output
@@ -69,10 +76,10 @@ public class Dataset {
 			sortedSchema[i] = schema[attributes[i].getSchemaIndex()];
 		}
 		this.plis = sortedPlis;
-		this.schema = sortedSchema;
+		this.relationName = message.getRelationName();
+		this.columnNames = sortedSchema;
 		this.numRecords = message.getNumRecords();
 		this.records = null;
-		this.datasetName = message.getDatasetName();
 		
 		// Debug output
 //		for (int[][] pli : this.plis)
@@ -82,10 +89,10 @@ public class Dataset {
 	
 	public Dataset(PlisMessage message, LoggingAdapter log) {
 		this.plis = message.getPlis();
-		this.schema = null;
+		this.relationName = null;
+		this.columnNames = null;
 		this.numRecords = message.getNumRecords();
 		this.records = new int[message.getNumRecords()][];
-		this.datasetName = null;
 		
 		// Debug output
 //		for (int[][] pli : this.plis)
@@ -95,9 +102,7 @@ public class Dataset {
 		// Generate and store pli-records
 		for (int r = 0; r < message.getNumRecords(); r++) {
 			this.records[r] = new int[this.plis.length];
-			for (int a = 0; a < this.plis.length; a++) {
-				this.records[r][a] = -1;
-			}
+			Arrays.fill(this.records[r], -1);
 		}
 		for (int attr = 0; attr < this.plis.length; attr++) {
 			int[][] pli = this.plis[attr];
@@ -108,7 +113,7 @@ public class Dataset {
 			}
 		}
 		log.info("Done creating pli records");
-
+		
 		// Debug output
 //		for (int i = 0; i < 50; i++) {
 //			log.info(Utils.recordToString(this.records[i]));
@@ -183,5 +188,40 @@ public class Dataset {
 	
 	public DataMessage toDataMessage() {
 		return new DataMessage(this.plis, this.records);
+	}
+	
+	public void writeToDisk(String fileName) {
+		String fileString = fileName + ".txt";
+		
+		File file = new File(fileString);
+		if (file.exists())
+			file.delete();
+		
+		try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(fileString), Charset.forName("UTF8"))) {
+		    for (int[][] pli : this.plis) {
+				writer.write("[");
+				for (int[] cluster : pli) {
+					writer.write("(");
+					for (int record : cluster)
+						writer.write(" " + record + " ");
+					writer.write(")");
+				}
+				writer.write("]\r\n");
+			}
+		    
+		    for (int[] record : this.records)
+		    	for (int val : record)
+		    		writer.write(val + " ");
+		    
+		} catch (IOException x) {
+		    System.out.println(x.getMessage());
+		}
+	}
+
+	public ColumnIdentifier[] getColumnIdentifiers() {
+		ColumnIdentifier[] columnIdentifiers = new ColumnIdentifier[this.columnNames.length];
+		for (int i = 0; i < this.columnNames.length; i++)
+			columnIdentifiers[i] = new ColumnIdentifier(this.relationName, this.columnNames[i]);
+		return columnIdentifiers;
 	}
 }

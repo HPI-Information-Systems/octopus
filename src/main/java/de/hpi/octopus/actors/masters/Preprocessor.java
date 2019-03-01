@@ -19,7 +19,7 @@ import de.hpi.octopus.actors.masters.Profiler.DiscoveryTaskMessage;
 import de.hpi.octopus.actors.slaves.Indexer.FinalizeMessage;
 import de.hpi.octopus.actors.slaves.Indexer.IndexingMessage;
 import de.hpi.octopus.actors.slaves.Indexer.SendAttributesMessage;
-import de.hpi.octopus.structures.DatasetDescriptor;
+import de.metanome.algorithm_integration.input.RelationalInputGenerator;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap.Entry;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
@@ -46,7 +46,8 @@ public class Preprocessor extends AbstractMaster {
 	public static class PreprocessingTaskMessage implements Serializable {
 		private static final long serialVersionUID = -4788853430111845038L;
 		private PreprocessingTaskMessage() {}
-		private DatasetDescriptor input;
+		private RelationalInputGenerator input;
+		private int bufferSize;
 	}
 	
 	@Data @AllArgsConstructor @SuppressWarnings("unused")
@@ -64,7 +65,8 @@ public class Preprocessor extends AbstractMaster {
 		private static final long serialVersionUID = 7327628760076825469L;
 		private BatchMessage() {}
 		private List<List<String>> batch;
-		private String[] schema;
+		private String relationName;
+		private String[] columnNames;
 		private int watermark;
 	}
 
@@ -89,14 +91,13 @@ public class Preprocessor extends AbstractMaster {
 
 	private int[][][] plis;
 	private int numRecords;
-	private String[] schema;
+	private String relationName;
+	private String[] columnNames;
 	
 	private int watermark = 0;
 	
 	private ActorRef datasetReader;
 	
-	private DatasetDescriptor datasetDescriptor;
-
 	private List<List<String>> waitingBatch = null;
 	private List<ActorRef> idleIndexers = new ArrayList<ActorRef>();
 	
@@ -172,9 +173,7 @@ public class Preprocessor extends AbstractMaster {
 		
 		this.context().actorSelection("/user/" + ProgressListener.DEFAULT_NAME).tell(new ProgressListener.StartMessage(), ActorRef.noSender());
 		
-		this.datasetDescriptor = message.getInput();
-		
-		this.datasetReader = this.context().actorOf(DatasetReader.props(message.getInput()), DatasetReader.DEFAULT_NAME);
+		this.datasetReader = this.context().actorOf(DatasetReader.props(message.getInput(), message.getBufferSize()), DatasetReader.DEFAULT_NAME);
 
 		this.datasetReader.tell(new ReadMessage(this.watermark), this.self());
 	}
@@ -189,7 +188,8 @@ public class Preprocessor extends AbstractMaster {
 		if (batch == null) {
 			this.plis = new int[this.attribute2indexer.size()][][];
 			this.numRecords = 0;
-			this.schema = message.getSchema();
+			this.relationName = message.getRelationName();
+			this.columnNames = message.getColumnNames();
 			
 			if (this.attribute2indexer.isEmpty()) {
 				this.endPreprocessing();
@@ -314,7 +314,7 @@ public class Preprocessor extends AbstractMaster {
 	
 	private void endPreprocessing() {
 		// Report resulting plis
-		this.context().actorSelection("/user/" + Profiler.DEFAULT_NAME).tell(new DiscoveryTaskMessage(this.plis, this.numRecords, this.schema, this.datasetDescriptor.getDatasetName()), this.self());
+		this.context().actorSelection("/user/" + Profiler.DEFAULT_NAME).tell(new DiscoveryTaskMessage(this.plis, this.numRecords, this.relationName, this.columnNames), this.self());
 		
 		// Terminate the preprocessing hierarchy
 		this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());

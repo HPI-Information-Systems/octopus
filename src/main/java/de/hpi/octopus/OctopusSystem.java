@@ -31,12 +31,12 @@ public class OctopusSystem {
 		final ActorSystem system = ActorSystem.create(actorSystemName, config);
 		
 		// Register a callback that ends the program when the ActorSystem terminates
-		system.registerOnTermination(new Runnable() {
-			@Override
-			public void run() {
-				System.exit(0);
-			}
-		});
+//		system.registerOnTermination(new Runnable() {
+//			@Override
+//			public void run() {
+//				System.exit(0);
+//			}
+//		});
 		
 		// Register a callback that terminates the ActorSystem when it is detached from the cluster
 		Cluster.get(system).registerOnMemberRemoved(new Runnable() {

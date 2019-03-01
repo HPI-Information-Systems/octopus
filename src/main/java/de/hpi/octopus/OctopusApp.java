@@ -2,17 +2,23 @@ package de.hpi.octopus;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.Parameters;
 
+import de.hpi.octopus.structures.DatasetDescriptor;
+import de.metanome.algorithm_integration.configuration.ConfigurationSettingFileInput;
+import de.metanome.algorithm_integration.input.RelationalInputGenerator;
+import de.metanome.backend.input.file.DefaultFileInputGenerator;
+
 public class OctopusApp {
 
 	public static final String ACTOR_SYSTEM_NAME = "octopus";
 	
-	public static void main(String[] args) {
+	public static void main(String[] args) throws Exception {
 		
     	MasterCommand masterCommand = new MasterCommand();
         SlaveCommand slaveCommand = new SlaveCommand();
@@ -21,8 +27,17 @@ public class OctopusApp {
             .addCommand(OctopusSlave.SLAVE_ROLE, slaveCommand)
             .build();
 
-        try {
-            jCommander.parse(args);
+		DatasetDescriptor dataset = new DatasetDescriptor(
+				"ncvoter_Statewide_10001r_71c",//"ncvoter_Statewide_1024001r_71c", 
+				"/home/thorsten/Data/Development/workspace/papenbrock/HyFDTestRunner/data/", ".csv",
+				true, StandardCharsets.UTF_8, ',', '"', '\\', "", false, true, 0, true);
+        
+        try (RelationalInputGenerator relationalInputGenerator = new DefaultFileInputGenerator(new ConfigurationSettingFileInput(
+				dataset.getDatasetPathNameEnding(), true, dataset.getAttributeSeparator(), dataset.getAttributeQuote(), 
+				dataset.getAttributeEscape(), dataset.isAttributeStrictQuotes(), dataset.isAttributeIgnoreLeadingWhitespace(), 
+				dataset.getReaderSkipLines(), dataset.isFileHasHeader(), dataset.isReaderSkipDifferingLines(), dataset.getAttributeNullString()))) {
+            
+        	jCommander.parse(args);
 
             if (jCommander.getParsedCommand() == null) {
                 throw new ParameterException("No command given.");
@@ -30,7 +45,7 @@ public class OctopusApp {
 
             switch (jCommander.getParsedCommand()) {
                 case OctopusMaster.MASTER_ROLE:
-                    OctopusMaster.start(ACTOR_SYSTEM_NAME, masterCommand.workers, masterCommand.host, masterCommand.port);
+                    OctopusMaster.start(ACTOR_SYSTEM_NAME, masterCommand.workers, masterCommand.host, masterCommand.port, relationalInputGenerator, null, false);
                     break;
                 case OctopusSlave.SLAVE_ROLE:
                     OctopusSlave.start(ACTOR_SYSTEM_NAME, slaveCommand.workers, slaveCommand.host, slaveCommand.port, slaveCommand.masterhost, slaveCommand.masterport);

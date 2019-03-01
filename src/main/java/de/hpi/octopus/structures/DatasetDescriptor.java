@@ -27,7 +27,6 @@ public class DatasetDescriptor implements Serializable {
 	private boolean attributeStrictQuotes;
 	private boolean attributeIgnoreLeadingWhitespace;
 	
-	private int readerBufferSize;
 	private int readerSkipLines;
 	private boolean readerSkipDifferingLines;
 	

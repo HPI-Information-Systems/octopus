@@ -57,6 +57,37 @@ public class FDTree extends FDTreeElement {
 		return result;
 	}
 	
+	public void addLhs(BitSet lhs) {
+		// Add the elements for the lhs
+		FDTreeElement element = this;
+		int lhsSize = 0;
+		int attribute = lhs.nextSetBit(0);
+		for (int child = lhs.nextSetBit(attribute + 1); child >= 0; child = lhs.nextSetBit(child + 1)) {
+			element.addChild(this.numAttributes, attribute, new FDTreeElement());
+			
+			element = element.getChildren()[attribute];
+			lhsSize++;
+			attribute = child;
+		}
+		
+		// Add the last element as a leaf that indicates an FD
+		element.addChild(this.numAttributes, attribute, new FDTreeLeaf(lhs, null, this.last));
+		
+		FDTreeLeaf leaf = (FDTreeLeaf) element.getChildren()[attribute];
+		
+		// Add the last element to the linked list of unannounced leaf elements
+		if (this.first == null) {
+			this.first = leaf;
+		}
+		else {
+			this.last.setNext(leaf);
+		}
+		this.last = leaf;
+		
+		// Adjust the depth of this tree
+		this.depth = Math.max(this.depth, lhsSize);
+	}
+
 	public void removeLhs(BitSet lhs) {
 		// Unsafe fast-remove: 
 		// - if lhs does not exist, we get a NullPointerException
@@ -92,38 +123,6 @@ public class FDTree extends FDTreeElement {
 		}
 	}
 
-	public void addLhs(BitSet lhs) {
-		// Add the elements for the lhs
-		FDTreeElement element = this;
-		int lhsSize = 0;
-		int attribute = lhs.nextSetBit(0);
-		for (int child = lhs.nextSetBit(attribute + 1); child >= 0; child = lhs.nextSetBit(child + 1)) {
-			element.addChild(this.numAttributes, attribute, new FDTreeElement());
-			
-			element = element.getChildren()[attribute];
-			lhsSize++;
-			attribute = child;
-		}
-		
-		// Add the last element as a leaf that indicates an FD
-		element.addChild(this.numAttributes, attribute, new FDTreeLeaf(lhs, null, this.last));
-		
-		FDTreeLeaf leaf = (FDTreeLeaf) element.getChildren()[attribute];
-		
-		// Add the last element to the linked list of unannounced leaf elements
-		if (this.first == null) {
-			this.first = leaf;
-		}
-		else {
-			this.last.setNext(leaf);
-			leaf.setPrevious(this.last);
-		}
-		this.last = leaf;
-		
-		// Adjust the depth of this tree
-		this.depth = Math.max(this.depth, lhsSize);
-	}
-	
 	public BitSet[] announceLhss(int amount) {
 		// Collect "amount"-many lhss from the head of the leaf elements list
 		BitSet[] lhss = new BitSet[amount];

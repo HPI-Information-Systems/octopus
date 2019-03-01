@@ -4,7 +4,9 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import akka.actor.ActorRef;
@@ -17,7 +19,6 @@ import de.hpi.octopus.actors.masters.Profiler.SamplingResultMessage;
 import de.hpi.octopus.actors.masters.Profiler.ValidationResultMessage;
 import de.hpi.octopus.structures.BloomFilter;
 import de.hpi.octopus.structures.FunctionalDependency;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 import lombok.AllArgsConstructor;
@@ -263,6 +264,12 @@ public class Validator extends AbstractSlave {
 				else
 					invalidRhss.add(attribute);
 			}
+			
+			// Add the comparison result to the filter so that we do not report the same result again during sampling
+			if (this.filter != null)
+				this.filter.add(invalidLhs);
+			
+			// Derive the fds from the match
 			for (int invalidRhs : invalidRhss)
 				invalidFDs.add(new FunctionalDependency(invalidLhs, invalidRhs));
 		}
@@ -270,34 +277,41 @@ public class Validator extends AbstractSlave {
 		// Send the result to the sender of the validation message
 		sender.tell(toValidationResultMessage(invalidFDs), this.self());
 		
+/*		if (sender.path().name().contains(DependencySteward.DEFAULT_NAME)) {
+			if (!invalidFDs.isEmpty()) {
+				System.out.println("AAAAaaahhh");
+			}
+			else {
+				System.out.println(rhs + " result is fine");
+			}
+		}
+*/		
 		return invalidFDs.size();
 	}
 	
 	private int[] findViolation(int[] lhs, int rhs) {
 		for (int[] cluster : this.plis[lhs[0]]) {
-			Int2ObjectOpenHashMap<int[]> lhsHash2rhsValue = new Int2ObjectOpenHashMap<>();
+			Map<int[], int[]> lhsValue2rhsValue = new HashMap<>();
 			for (int recordID : cluster) {
-				int lhsHash = this.hash(lhs, recordID);
+				// Get the rhs and the lhs value
 				int rhsValue = this.records[recordID][rhs];
+				int[] lhsValue = new int[lhs.length - 1];
+				for (int i = 0; i < lhsValue.length; i++)
+					lhsValue[i] = this.records[recordID][lhs[i + 1]];
 				
-				// If the lhs value hash is new, add a new mapping to the rhs value.
-				if (!lhsHash2rhsValue.containsKey(lhsHash)) {
+				// If the lhs value is new, add a new mapping to the rhs value
+				if (!lhsValue2rhsValue.containsKey(lhsValue)) {
 					int[] rhsValueAndRecord = new int[2];
 					rhsValueAndRecord[0] = rhsValue;
 					rhsValueAndRecord[1] = recordID;
-					lhsHash2rhsValue.put(lhsHash, rhsValueAndRecord);
+					lhsValue2rhsValue.put(lhsValue, rhsValueAndRecord);
 					continue;
 				}
 				
-				// If the lhs value hash is known, test if the rhs value is the same.
-				if (lhsHash2rhsValue.get(lhsHash)[0] == rhsValue) {
-					continue;
-				}
-				
-				// If the lhs value is the same, the FD is violated, because the rhs value differs here.
-				int recordIDOld = lhsHash2rhsValue.get(lhsHash)[1];
-				if (this.isMatch(recordID, recordIDOld, lhs)) {
-					int[] violation = {recordID, recordIDOld};
+				// If the lhs value hash is known, test if the rhs value is the same and return a violation if not
+				int[] rhsValueAndRecord = lhsValue2rhsValue.get(lhsValue);
+				if (rhsValueAndRecord[0] != rhsValue) {
+					int[] violation = {recordID, rhsValueAndRecord[1]};
 					return violation;
 				}
 			}
@@ -305,31 +319,12 @@ public class Validator extends AbstractSlave {
 		return null;
 	}
 	
-	private int hash(int[] lhs, int recordID) {
-		int hash = 1;
-		int index = lhs.length;
-		while (index-- != 1)
-			hash = 31 * hash + this.records[recordID][lhs[index]];
-		return hash;
-	}
-
-	private boolean isMatch(final int recordID1, final int recordID2, final int[] attributes) {
-		for (int attribute : attributes)
-			if (isDifferent(this.records[recordID1][attribute], this.records[recordID2][attribute]))
-				return false;
-		return true;
-	}
-
 	private boolean isMatch(final int recordID1, final int recordID2, final int attribute) {
 		return isEqual(this.records[recordID1][attribute], this.records[recordID2][attribute]);
 	}
 
 	private static boolean isEqual(final int value1, final int value2) {
 		return (value1 == value2) && (value1 != -1);
-	}
-	
-	private static boolean isDifferent(final int value1, final int value2) {
-		return (value1 == -1) || (value1 != value2);
 	}
 	
 	private static int[] toArray(BitSet bitSet) {

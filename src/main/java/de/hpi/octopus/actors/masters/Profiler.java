@@ -49,8 +49,8 @@ public class Profiler extends AbstractMaster {
 		private DiscoveryTaskMessage() {}
 		private int[][][] plis;
 		private int numRecords;
-		private String[] schema;
-		private String datasetName;
+		private String relationName;
+		private String[] columnNames;
 	}
 
 	@Data @AllArgsConstructor

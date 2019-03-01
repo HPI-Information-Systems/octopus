@@ -10,6 +10,7 @@ import akka.actor.ActorRef;
 import akka.actor.ActorSelection;
 import akka.actor.Props;
 import akka.actor.Terminated;
+import akka.cluster.Cluster;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -77,6 +78,8 @@ public class Reaper extends AbstractLoggingActor {
 			if (this.watchees.isEmpty()) {
 				this.log().info("Every local actor has been reaped. Terminating the actor system...");
 				this.context().system().terminate();
+			//	Cluster cluster = Cluster.get(this.context().system());
+			//	cluster.leave(cluster.selfAddress());
 			}
 		} else {
 			this.log().error("Got termination message from unwatched {}.", sender);

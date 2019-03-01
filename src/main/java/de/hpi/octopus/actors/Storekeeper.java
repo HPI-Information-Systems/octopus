@@ -149,5 +149,8 @@ public class Storekeeper extends AbstractLoggingActor {
 		for (ActorRef validator : this.waitingValidators)
 			validator.tell(this.dataset.toDataMessage(), this.self());
 		this.waitingValidators.clear();
+		
+		// Write dataset to disk for debugging
+//		this.dataset.writeToDisk("dataset");
 	}
 }

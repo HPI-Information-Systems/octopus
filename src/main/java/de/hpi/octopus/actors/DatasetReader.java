@@ -7,11 +7,8 @@ import java.util.List;
 import akka.actor.AbstractLoggingActor;
 import akka.actor.Props;
 import de.hpi.octopus.actors.masters.Preprocessor;
-import de.hpi.octopus.structures.DatasetDescriptor;
-import de.metanome.algorithm_integration.configuration.ConfigurationSettingFileInput;
 import de.metanome.algorithm_integration.input.RelationalInput;
 import de.metanome.algorithm_integration.input.RelationalInputGenerator;
-import de.metanome.backend.input.file.DefaultFileInputGenerator;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -23,12 +20,13 @@ public class DatasetReader extends AbstractLoggingActor {
 	
 	public static final String DEFAULT_NAME = "inputReader";
 
-	public static Props props(DatasetDescriptor dataset) {
-		return Props.create(DatasetReader.class, () -> new DatasetReader(dataset));
+	public static Props props(RelationalInputGenerator relationalInputGenerator, int bufferSize) {
+		return Props.create(DatasetReader.class, () -> new DatasetReader(relationalInputGenerator, bufferSize));
 	}
 
-	public DatasetReader(DatasetDescriptor dataset) {
-		this.dataset = dataset;
+	public DatasetReader(RelationalInputGenerator relationalInputGenerator, int bufferSize) {
+		this.relationalInputGenerator = relationalInputGenerator;
+		this.bufferSize = bufferSize;
 	}
 
 	////////////////////
@@ -53,11 +51,12 @@ public class DatasetReader extends AbstractLoggingActor {
 	// Actor State //
 	/////////////////
 	
-	private DatasetDescriptor dataset;
-
 	private RelationalInputGenerator relationalInputGenerator;
 	private RelationalInput relationalInputReader;
 	
+	private int bufferSize;
+	
+	private String relationName;
 	private String[] columnNames;
 	private List<List<String>> buffer;
 	
@@ -68,12 +67,8 @@ public class DatasetReader extends AbstractLoggingActor {
 	@Override
 	public void preStart() throws Exception {
 		// Open the input and start reading first lines into local cache
-		this.relationalInputGenerator = new DefaultFileInputGenerator(new ConfigurationSettingFileInput(
-				this.dataset.getDatasetPathNameEnding(), true, this.dataset.getAttributeSeparator(), this.dataset.getAttributeQuote(), 
-				this.dataset.getAttributeEscape(), this.dataset.isAttributeStrictQuotes(), this.dataset.isAttributeIgnoreLeadingWhitespace(), 
-				this.dataset.getReaderSkipLines(), this.dataset.isFileHasHeader(), this.dataset.isReaderSkipDifferingLines(), this.dataset.getAttributeNullString()));
-		
 		this.relationalInputReader = this.relationalInputGenerator.generateNewCopy();
+		this.relationName = this.relationalInputReader.relationName();
 		this.columnNames = this.relationalInputReader.columnNames().toArray(new String[0]);
 		
 		this.read();
@@ -109,6 +104,8 @@ public class DatasetReader extends AbstractLoggingActor {
 	private void handle(RestartMessage message) throws Exception {
 		this.relationalInputReader.close();
 		this.relationalInputReader = this.relationalInputGenerator.generateNewCopy();
+		
+		this.relationName = this.relationalInputReader.relationName();
 		this.columnNames = this.relationalInputReader.columnNames().toArray(new String[0]);
 		
 		this.read();
@@ -118,17 +115,17 @@ public class DatasetReader extends AbstractLoggingActor {
 
 	private void send(int watermark) {
 		if (this.buffer.isEmpty()) {
-			this.sender().tell(new Preprocessor.BatchMessage(null, this.columnNames, watermark), this.self());
+			this.sender().tell(new Preprocessor.BatchMessage(null, this.relationName, this.columnNames, watermark), this.self());
 			return;
 		}
 		
-		this.sender().tell(new Preprocessor.BatchMessage(this.buffer, null, watermark), this.self());
+		this.sender().tell(new Preprocessor.BatchMessage(this.buffer, null, null, watermark), this.self());
 	}
 	
 	private void read() throws Exception {
-		this.buffer = new ArrayList<>(this.dataset.getReaderBufferSize());
+		this.buffer = new ArrayList<>(this.bufferSize);
 		
-		while (this.relationalInputReader.hasNext() && this.buffer.size() < this.dataset.getReaderBufferSize()) {
+		while (this.relationalInputReader.hasNext() && this.buffer.size() < this.bufferSize) {
 			List<String> record = this.relationalInputReader.next();
 			
 			this.buffer.add(record);

@@ -73,7 +73,7 @@ public class DependencySteward extends AbstractLoggingActor {
 	/////////////////
 	// Actor State //
 	/////////////////
-
+	
 	private int rhs;
 	private FDTree fds;
 	
@@ -196,8 +196,8 @@ public class DependencySteward extends AbstractLoggingActor {
 		this.fds = null;
 		
 		// Write all FDs to disk
-		String pathString = message.getOutputPath() + File.separatorChar + message.getDataset().getDatasetName();
-		String fileString = pathString + File.separatorChar + message.getDataset().getSchema()[this.rhs] + ".txt";
+		String pathString = message.getOutputPath() + File.separatorChar + message.getDataset().getRelationName();
+		String fileString = pathString + File.separatorChar + message.getDataset().getColumnNames()[this.rhs] + ".txt";
 		
 		File path = new File(pathString);
 		if (!path.exists())
@@ -211,12 +211,12 @@ public class DependencySteward extends AbstractLoggingActor {
 		    for (BitSet lhs : allLhss) {
 				StringBuffer buffer = new StringBuffer("[");
 				for (int attribute = lhs.nextSetBit(0); attribute >= 0; attribute = lhs.nextSetBit(attribute + 1)) {
-					buffer.append(message.getDataset().getSchema()[attribute]);
+					buffer.append(message.getDataset().getColumnNames()[attribute]);
 					buffer.append(", ");
 				}
 				buffer.delete(buffer.length() - 2 , buffer.length());
 				buffer.append("] --> ");
-				buffer.append(message.getDataset().getSchema()[this.rhs]);
+				buffer.append(message.getDataset().getColumnNames()[this.rhs]);
 				buffer.append("\r\n");
 
 				writer.write(buffer.toString());
@@ -226,10 +226,13 @@ public class DependencySteward extends AbstractLoggingActor {
 		}
 		
 		// Tell the progress listener that this dependency steward is done
-		this.context().actorSelection("/user/" + ProgressListener.DEFAULT_NAME).tell(new ProgressListener.FinishedMessage(allLhss.size()), ActorRef.noSender());
+		this.context().actorSelection("/user/" + ProgressListener.DEFAULT_NAME).tell(new ProgressListener.FinishedMessage(allLhss.size(), allLhss.toArray(new BitSet[allLhss.size()]), this.rhs, message.getDataset()), ActorRef.noSender());
 		
 		// Terminate
 		this.self().tell(PoisonPill.getInstance(), this.self());
+		
+//		// Testing: Is the reported result correct?
+//		this.context().actorSelection("/user/" + Validator.DEFAULT_NAME + "1").tell(new Validator.ValidationMessage(allLhss.toArray(new BitSet[0]), this.rhs), this.self());
 	}
 	
 }
