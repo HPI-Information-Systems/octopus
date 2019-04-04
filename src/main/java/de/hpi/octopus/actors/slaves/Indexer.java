@@ -139,19 +139,16 @@ public class Indexer extends AbstractSlave {
 		
 		// Strip the values and partitions of size 1 from the index to obtain the pli
 		List<IntArrayList> pliStripped = new ArrayList<>(index.size());
-		for (IntArrayList cluster : index.values()) {
+		for (IntArrayList cluster : index.values())
 			if (cluster.size() > 1)
 				pliStripped.add(cluster);
-		}
 		index = null;
 		
 		// Convert list into array
 		int[][] pli = new int[pliStripped.size()][];
-		int clusterId = 0;
-		for (IntArrayList cluster : pliStripped) {
-			pli[clusterId] = cluster.toIntArray();
-			clusterId++;
-		}
+		for (int clusterId = 0; clusterId < pliStripped.size(); clusterId++)
+			pli[clusterId] = pliStripped.get(clusterId).toIntArray();
+		pliStripped = null;
 		
 		int inputLength = this.attribute2offset.remove(attribute);
 		
@@ -160,7 +157,7 @@ public class Indexer extends AbstractSlave {
 	
 	private void handle(SendAttributesMessage message) {
 		Int2ObjectOpenHashMap<Map<String, IntArrayList>> sendAttribute2value2positions = new Int2ObjectOpenHashMap<>();
-		Int2IntOpenHashMap seindAttribute2offset = new Int2IntOpenHashMap();
+		Int2IntOpenHashMap sendAttribute2offset = new Int2IntOpenHashMap();
 		
 		IntIterator attributeIterator = this.attribute2offset.keySet().iterator();
 		
@@ -168,10 +165,10 @@ public class Indexer extends AbstractSlave {
 			int sendAttribute = attributeIterator.nextInt();
 			
 			sendAttribute2value2positions.put(sendAttribute, this.attribute2value2positions.remove(sendAttribute));
-			seindAttribute2offset.put(sendAttribute, this.attribute2offset.remove(sendAttribute));
+			sendAttribute2offset.put(sendAttribute, this.attribute2offset.remove(sendAttribute));
 		}
 		
-		ReceiveAttributesMessage receive = new ReceiveAttributesMessage(sendAttribute2value2positions, seindAttribute2offset, message.getWatermark());
+		ReceiveAttributesMessage receive = new ReceiveAttributesMessage(sendAttribute2value2positions, sendAttribute2offset, message.getWatermark());
 		message.getToActor().tell(receive, this.sender());
 	}
 	

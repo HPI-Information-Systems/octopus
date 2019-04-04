@@ -19,6 +19,7 @@ import de.hpi.octopus.actors.listeners.ProgressListener;
 import de.hpi.octopus.actors.masters.Profiler.CandidateMessage;
 import de.hpi.octopus.actors.masters.Profiler.FDsUpdatedMessage;
 import de.hpi.octopus.structures.Dataset;
+import de.hpi.octopus.structures.FDStore;
 import de.hpi.octopus.structures.FDTree;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -31,7 +32,7 @@ public class DependencySteward extends AbstractLoggingActor {
 	
 	public static final String DEFAULT_NAME = "dependencySteward";
 
-	public static final int MAX_CANDIDATES_PER_REQUEST = 100;
+	public static final int MAX_CANDIDATES_PER_REQUEST = 50;
 	
 	public static Props props(int rhs, int numAttributes, int maxDepth) {
 		return Props.create(DependencySteward.class, () -> new DependencySteward(rhs, numAttributes, maxDepth));
@@ -75,7 +76,7 @@ public class DependencySteward extends AbstractLoggingActor {
 	/////////////////
 	
 	private int rhs;
-	private FDTree fds;
+	private FDStore fds;
 	
 	private int maxDepth;
 	
@@ -84,7 +85,7 @@ public class DependencySteward extends AbstractLoggingActor {
 	private double samplingCalculationEfficiency = 0;
 	private double samplingUpdateEfficiency = 0;
 	
-	private double validationThreshold = 0.9;
+	private double validationThreshold = 0.8;
 	private double samplingThreshold = 0.01;
 	
 	/////////////////////
@@ -154,7 +155,7 @@ public class DependencySteward extends AbstractLoggingActor {
 		
 		// Update efficiencies and preference if necessary
 		if (message.isOwn()) {
-			if (message.isValidation()) {
+			if (message.isValidation()) { // TODO: Nochmal überdenken wie die Effizienz bewertet wird...
 				this.validationCalculationEfficiency = message.getEfficiency();
 				this.validationUpdateEfficiency = (double) numUpdates / (double) message.getInvalidLhss().length;
 			}

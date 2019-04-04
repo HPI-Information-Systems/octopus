@@ -19,6 +19,10 @@ public class FDTreeElement {
 		this.children = children;
 	}
 	
+	public boolean hasChild(int attribute) {
+		return (this.children != null) && (this.children[attribute] != null);
+	}
+	
 	public void addChild(int numAttributes, int attribute, FDTreeElement child) {
 		if (this.children == null)
 			this.children = new FDTreeElement[numAttributes];

@@ -1,9 +1,9 @@
 package de.hpi.octopus.actors.masters;
 
-import java.io.Serializable;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Queue;
@@ -16,18 +16,28 @@ import de.hpi.octopus.actors.DependencySteward;
 import de.hpi.octopus.actors.DependencySteward.CandidateRequestMessage;
 import de.hpi.octopus.actors.DependencySteward.FinalizeMessage;
 import de.hpi.octopus.actors.DependencySteward.InvalidFDsMessage;
-import de.hpi.octopus.actors.listeners.ProgressListener;
+import de.hpi.octopus.actors.Storekeeper;
+import de.hpi.octopus.actors.masters.Profiler.CandidateMessage;
+import de.hpi.octopus.actors.masters.Profiler.DiscoveryTaskMessage;
+import de.hpi.octopus.actors.masters.Profiler.FDsUpdatedMessage;
+import de.hpi.octopus.actors.masters.Profiler.SamplingResultMessage;
+import de.hpi.octopus.actors.masters.Profiler.SendPlisMessage;
+import de.hpi.octopus.actors.masters.Profiler.ValidationResultMessage;
 import de.hpi.octopus.actors.slaves.Validator;
 import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
 import de.hpi.octopus.actors.slaves.Validator.TerminateMessage;
 import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
 import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.DependencyStewardRing;
+import de.hpi.octopus.structures.FDSet;
+import de.hpi.octopus.structures.FDStore;
+import de.hpi.octopus.structures.FDTree;
 import de.hpi.octopus.structures.SamplingEfficiency;
-import lombok.AllArgsConstructor;
-import lombok.Data;
+import de.hpi.octopus.structures.ValueCombination;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.ints.IntList;
 
-public class Profiler extends AbstractMaster {
+public class Profiler2 extends AbstractMaster {
 
 	////////////////////////
 	// Actor Construction //
@@ -36,62 +46,12 @@ public class Profiler extends AbstractMaster {
 	public static final String DEFAULT_NAME = "profiler";
 
 	public static Props props() {
-		return Props.create(Profiler.class);
+		return Props.create(Profiler2.class);
 	}
 
 	////////////////////
 	// Actor Messages //
 	////////////////////
-	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
-	public static class DiscoveryTaskMessage implements Serializable {
-		private static final long serialVersionUID = -8330958742629706627L;
-		private DiscoveryTaskMessage() {}
-		private int[][][] plis;
-		private int numRecords;
-		private String relationName;
-		private String[] columnNames;
-	}
-
-	@Data @AllArgsConstructor
-	public static class SendPlisMessage implements Serializable {
-		private static final long serialVersionUID = -8456522795571418518L;
-	}
-	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
-	public static class CandidateMessage implements Serializable {
-		private static final long serialVersionUID = 8558551115259674228L;
-		private CandidateMessage() {}
-		private BitSet[] lhss;
-		private int rhs;
-	}
-	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
-	public static class ValidationResultMessage implements Serializable {
-		private static final long serialVersionUID = -6823011111281387872L;
-		private ValidationResultMessage() {}
-		private BitSet[][] invalidLhss;
-		private int[] invalidRhss;
-	}
-
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
-	public static class SamplingResultMessage implements Serializable {
-		private static final long serialVersionUID = -6823011111281387872L;
-		private SamplingResultMessage() {}
-		private BitSet[][] invalidLhss;
-		private int[] invalidRhss;
-		private int comparisons;
-		private int matches;
-	}
-	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
-	public static class FDsUpdatedMessage implements Serializable {
-		private static final long serialVersionUID = 1182835629941183917L;
-		private FDsUpdatedMessage() {}
-		private int rhs;
-		private boolean updatePreference;
-		private boolean validation;
-	}
 	
 	/////////////////
 	// Actor State //
@@ -113,6 +73,12 @@ public class Profiler extends AbstractMaster {
 
 	private Queue<Object> unassignedWork = new LinkedList<>();
 
+	private int[] rhss;
+	private FDStore[] fdss;
+//	private FDStore[] fdss2;
+	private int[][] records;
+	private int[][][] plis;
+	
 	/////////////////////
 	// Actor Lifecycle //
 	/////////////////////
@@ -195,37 +161,292 @@ public class Profiler extends AbstractMaster {
 			return;
 		}
 		
-		// TODO: we could check the special cases of {}->A for all attributes A here by testing if this.plis[A][0].length == this.numRecords or we keep ignoring all {}->A and consider B->A, C->A, D->A etc. as smallest FDs
-		
 		// Initialize local dataset with the given task; this also sorts the attributes by the number of their pli clusters
 		this.dataset = new Dataset(message, this.log());
+		this.plis = this.dataset.getPlis();
 		
 		// Start one dependency steward for each attribute
 		int numAttributes = this.dataset.getNumAtrributes();
-		this.children = numAttributes;
-		this.dependencyStewards = new ActorRef[numAttributes];
-		this.samplingEfficiencies = new SamplingEfficiency[numAttributes];
-		this.prioritizedSamplingEfficiencies = new PriorityQueue<SamplingEfficiency>(numAttributes);
+		this.rhss = new int[numAttributes];
+		this.fdss = new FDStore[numAttributes];
+//		this.fdss2 = new FDStore[numAttributes];
 		for (int i = 0; i < numAttributes; i++) {
-			this.dependencyStewards[i] = this.context().actorOf(
-					DependencySteward.props(i, numAttributes, -1), 
-					DependencySteward.DEFAULT_NAME + i); // TODO: the maxDepth i.e. max FD size should be a parameter
-			this.context().watch(this.dependencyStewards[i]);
-			
-			SamplingEfficiency samplingEfficiency = new SamplingEfficiency(i);
-			this.samplingEfficiencies[i] = samplingEfficiency;
-			this.prioritizedSamplingEfficiencies.add(samplingEfficiency);
+			this.rhss[i] = i;
+			this.fdss[i] = new FDTree(numAttributes, i);
+//			this.fdss2[i] = new FDSet(numAttributes, i);
 		}
-		this.dependencyStewardRing = new DependencyStewardRing(this.dependencyStewards.length);
+
+		int count = 0; 
 		
-		// Tell the progress listener to wait for the dependency stewards
-		this.context().actorSelection("/user/" + ProgressListener.DEFAULT_NAME).tell(new ProgressListener.StewardsMessage(numAttributes), ActorRef.noSender());
+		Dataset d = new Dataset(new Storekeeper.PlisMessage(this.dataset.getPlis(), this.dataset.getNumRecords()), this.log());
+		// Store the data
+		this.records = d.getRecords();
 		
-		// Assign initial work to all validators
-		while (!this.idleValidators.isEmpty())
-			this.assign(this.idleValidators.poll());
+/*		for (int i = 0; i < this.records.length; i++) {
+			if (i % 500 == 0)
+				System.out.println(i);
+			
+			for (int j = i + 1; j < this.records.length; j++) {
+				BitSet invalidLhs = new BitSet(numAttributes);
+				IntList invalidRhss = new IntArrayList();
+				for (int attribute = 0; attribute < numAttributes; attribute++) {
+					if (this.isMatch(i, j, attribute))
+						invalidLhs.set(attribute);
+					else
+						invalidRhss.add(attribute);
+				}
+				
+				for (int k : invalidRhss) {
+					for (BitSet specLhs : this.fdss[k].getLhsAndGeneralizations(invalidLhs)) {
+						this.fdss[k].removeLhs(specLhs);
+						
+						for (int attribute = 0; attribute < numAttributes; attribute++) {
+							if (invalidLhs.get(attribute) || (attribute == k))
+								continue;
+							
+							specLhs.set(attribute);
+							if (!this.fdss[k].containsLhsOrGeneralization(specLhs)) {
+								this.fdss[k].addLhs(specLhs);
+								
+								// If dynamic memory management is enabled, frequently check the memory consumption and trim the positive cover if it does not fit anymore
+							//	this.memoryGuardian.memoryChanged(1);
+							//	this.memoryGuardian.match(this.negCover, this.posCover, invalidLhs); // TODO: Someone needs to supervise the overall memory consumption
+							}
+							specLhs.clear(attribute);
+						}
+					}
+				}
+			}
+		}
+*/		
+		for (int i = 0; i < numAttributes; i++) {
+			int rhs = i;
+			while (true) {
+				BitSet[] lhss = this.fdss[i].announceLhss(100);
+//				BitSet[] lhss2 = this.fdss2[i].announceLhss(100);
+//				if (lhss.length != lhss2.length)
+//					throw new RuntimeException("announce()");
+				
+				if (lhss.length == 0)
+					break;
+				
+				int falses = 0;
+				for (BitSet lhsBitSet : lhss) {
+					int[] lhs = toArray(lhsBitSet);
+					
+					int[] violation = this.findViolation(lhs, rhs);
+					if (violation == null)
+						continue;
+					
+					falses++;
+					
+				//	this.printBitSet(lhsBitSet, numAttributes);
+				//	System.out.println(Utils.recordToString(lhs));
+				//	System.out.println();
+					
+					// Add the violated FD to the container of invalid FDs
+				//	invalidFDs.add(new FunctionalDependency(lhsBitSet, rhs)); // Not necessary, because we compare the two records and find and add this non-FD again 
+					
+					// Compare the two records that caused the violation to find violations for other FDs (= execute comparison suggestion)
+					BitSet invalidLhs = new BitSet(numAttributes);
+					IntList invalidRhss = new IntArrayList();
+					for (int attribute = 0; attribute < numAttributes; attribute++) {
+						if (this.isMatch(violation[0], violation[1], attribute))
+							invalidLhs.set(attribute);
+						else
+							invalidRhss.add(attribute);
+					}
+					
+				/*	System.out.println(Utils.recordToString(this.records[violation[0]]));
+					System.out.println(Utils.recordToString(this.records[violation[1]]));
+					this.printBitSet(invalidLhs, numAttributes);
+					System.out.println();
+				*/	
+					//invalidLhs = lhsBitSet;
+					
+//					List<BitSet> specLhs2 = this.fdss2[i].getLhsAndGeneralizations(invalidLhs);
+					for (BitSet specLhs : this.fdss[i].getLhsAndGeneralizations(invalidLhs)) {
+//						if (!specLhs2.contains(specLhs))
+//							throw new RuntimeException("getLhsAndGeneralizations()");
+						
+						this.fdss[i].removeLhs(specLhs);
+//						this.fdss2[i].removeLhs(specLhs);
+						
+//						if (this.fdss[i].containsLhs(specLhs))
+//							throw new RuntimeException("remove()" + specLhs.toString());
+//						if (this.fdss2[i].containsLhs(specLhs))
+//							throw new RuntimeException("remove()" + specLhs.toString());
+						
+						for (int attribute = 0; attribute < numAttributes; attribute++) {
+							if (invalidLhs.get(attribute) || (attribute == rhs))
+								continue;
+							
+							specLhs.set(attribute);
+							if (!this.fdss[i].containsLhsOrGeneralization(specLhs)) {
+//								if (this.fdss2[i].containsLhsOrGeneralization(specLhs))
+//									throw new RuntimeException("containsLhsOrGeneralization()" + specLhs.toString());
+								
+								
+								this.fdss[i].addLhs(specLhs);
+//								this.fdss2[i].addLhs(specLhs);
+								
+//								if (!this.fdss[i].containsLhs(specLhs))
+//									throw new RuntimeException("add()" + specLhs.toString());
+//								if (!this.fdss2[i].containsLhs(specLhs))
+//									throw new RuntimeException("add()" + specLhs.toString());
+								
+								// If dynamic memory management is enabled, frequently check the memory consumption and trim the positive cover if it does not fit anymore
+							//	this.memoryGuardian.memoryChanged(1);
+							//	this.memoryGuardian.match(this.negCover, this.posCover, invalidLhs); // TODO: Someone needs to supervise the overall memory consumption
+							}
+							specLhs.clear(attribute);
+						}
+					}
+				}
+
+				//System.out.println("Given " + lhss.length + "; false " + falses);
+				
+			}
+			
+			// Collect all valid lhss
+			BitSet allAttributes = new BitSet(numAttributes);
+			allAttributes.set(0, numAttributes);
+			
+			List<BitSet> allLhss = this.fdss[i].getLhsAndGeneralizations(allAttributes);
+			
+			count += allLhss.size();
+			
+			System.out.println("Finished " + i + " with " + allLhss.size() + " FDs");
+	/*		for (BitSet l : allLhss) {
+				for (int x = l.nextSetBit(0); x >= 0; x = l.nextSetBit(x + 1)) {
+					System.out.print(this.dataset.getColumnNames()[x] + " ");
+				}
+				System.out.println("--> " + this.dataset.getColumnNames()[i]);
+			}
+	*/	}
+		
+		
+		
+		// Collect all valid lhss
+		BitSet allAttributes = new BitSet(numAttributes);
+		allAttributes.set(0, numAttributes);
+		
+/*		for (int i = 0; i < numAttributes; i++) { 
+			List<BitSet> allLhss = this.fdss[i].getLhsAndGeneralizations(allAttributes);
+			
+			// Free the FDTree
+			this.fdss[i] = null;
+			
+			count += allLhss.size();
+			
+			// Write all FDs to disk
+			String pathString = message.getOutputPath() + File.separatorChar + message.getDataset().getRelationName();
+			String fileString = pathString + File.separatorChar + message.getDataset().getColumnNames()[this.rhs] + ".txt";
+			
+			File path = new File(pathString);
+			if (!path.exists())
+				path.mkdirs();
+			
+			File file = new File(fileString);
+			if (file.exists())
+				file.delete();
+			
+			try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(fileString), Charset.forName("UTF8"))) {
+			    for (BitSet lhs : allLhss) {
+					StringBuffer buffer = new StringBuffer("[");
+					for (int attribute = lhs.nextSetBit(0); attribute >= 0; attribute = lhs.nextSetBit(attribute + 1)) {
+						buffer.append(message.getDataset().getColumnNames()[attribute]);
+						buffer.append(", ");
+					}
+					buffer.delete(buffer.length() - 2 , buffer.length());
+					buffer.append("] --> ");
+					buffer.append(message.getDataset().getColumnNames()[this.rhs]);
+					buffer.append("\r\n");
+	
+					writer.write(buffer.toString());
+				}
+			} catch (IOException x) {
+			    this.log().error(x, x.getMessage());
+			}
+			
+			// Tell the progress listener that this dependency steward is done
+			this.context().actorSelection("/user/" + ProgressListener.DEFAULT_NAME).tell(new ProgressListener.FinishedMessage(allLhss.size(), allLhss.toArray(new BitSet[allLhss.size()]), this.rhs, message.getDataset()), ActorRef.noSender());
+			
+			// Terminate
+			this.self().tell(PoisonPill.getInstance(), this.self());
+		}		
+*/		
+		System.out.println("Found FDs: " + count);
+		
 	}
 
+	private void printBitSet(BitSet bitset, int length) {
+		for (int u = 0; u < length; u++)
+			if (bitset.get(u))
+				System.out.print(1 + " ");
+			else
+				System.out.print(0 + " ");
+		System.out.println();
+	}
+	
+	private void print(BitSet bitset, int length) {
+		for (int u = 0; u < length; u++)
+			if (bitset.get(u))
+				System.out.print(u + " ");
+		System.out.println();
+	}
+	
+	private int[] findViolation(int[] lhs, int rhs) {
+		for (int[] cluster : this.plis[lhs[0]]) {
+			Map<ValueCombination, int[]> lhsValue2rhsValue = new HashMap<>();
+			for (int recordID : cluster) {
+				// Get the rhs and the lhs value
+				int[] values = new int[lhs.length - 1];
+				for (int i = 0; i < values.length; i++)
+					values[i] = this.records[recordID][lhs[i + 1]];
+				
+				ValueCombination lhsValue = new ValueCombination(values);
+				int rhsValue = this.records[recordID][rhs];
+				
+				if (lhsValue.isUnique())
+					continue;
+				
+				// If the lhs value is new, add a new mapping to the rhs value
+				if (!lhsValue2rhsValue.containsKey(lhsValue)) {
+					int[] rhsValueAndRecord = new int[2];
+					rhsValueAndRecord[0] = rhsValue;
+					rhsValueAndRecord[1] = recordID;
+					lhsValue2rhsValue.put(lhsValue, rhsValueAndRecord);
+					continue;
+				}
+				
+				// If the lhs value hash is known, test if the rhs value is the same and return a violation if not
+				int[] rhsValueAndRecord = lhsValue2rhsValue.get(lhsValue);
+				if (!isEqual(rhsValueAndRecord[0], rhsValue)) {
+					int[] violation = {recordID, rhsValueAndRecord[1]};
+					return violation;
+				}
+			}
+		}
+		return null;
+	}
+	
+	private boolean isMatch(final int recordID1, final int recordID2, final int attribute) {
+		return isEqual(this.records[recordID1][attribute], this.records[recordID2][attribute]);
+	}
+
+	private static boolean isEqual(final int value1, final int value2) {
+		return (value1 == value2) && (value1 != -1);
+	}
+	
+	private static int[] toArray(BitSet bitSet) {
+		int[] array = new int[bitSet.cardinality()];
+		for (int trueBit = bitSet.nextSetBit(0), index = 0; trueBit >= 0; trueBit = bitSet.nextSetBit(trueBit + 1), index++)
+			array[index] = trueBit;
+		return array;
+	}
+	
+	
 	private void handle(SendPlisMessage mesage) {
 		this.sender().tell(this.dataset.toPlisMessage(), this.self());
 	}
@@ -275,8 +496,6 @@ public class Profiler extends AbstractMaster {
 		int distance = samplingMessage.getDistance();
 		int comparisons = samplingResultMessage.getComparisons();
 		int matches = samplingResultMessage.getMatches();
-		
-		this.log().info(attribute + " " + distance + " " + comparisons + " " + matches);
 		
 		SamplingEfficiency samplingEfficiency = this.samplingEfficiencies[attribute];
 		this.prioritizedSamplingEfficiencies.remove(samplingEfficiency);
@@ -395,7 +614,7 @@ public class Profiler extends AbstractMaster {
 		}
 		
 		// Try to assign a sampling task
-		attribute = this.dependencyStewardRing.nextIdleWithSamplingPreference(); // TODO: If this attribute has a sampling preference, then we should not use this attribute for sampling, because we want to find contradictions that have differing values for this attribute; maybe we can inverse the sampling: use record pairs that have DIFFERING clusters for this attribute?
+		attribute = this.dependencyStewardRing.nextIdleWithSamplingPreference();
 		if (attribute >= 0) {
 			SamplingEfficiency samplingEfficiency = this.prioritizedSamplingEfficiencies.poll();
 			int distance = samplingEfficiency.step();

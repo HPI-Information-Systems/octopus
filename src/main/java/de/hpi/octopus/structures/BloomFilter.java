@@ -1,6 +1,12 @@
 package de.hpi.octopus.structures;
 
+import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 
 public class BloomFilter {
 
@@ -8,6 +14,11 @@ public class BloomFilter {
 	
 	private final BitSet bits;
 	private final int size;
+	
+	private final HashSet<Integer> set = new HashSet<>();
+	private final Set<BitSet> set2 = new HashSet<>();
+	private final ObjectOpenHashSet<BitSet> set3 = new ObjectOpenHashSet<>();
+	private final List<BitSet> list = new ArrayList<>();
 
 	public BloomFilter() {
 		this.bits = new BitSet(DEFAULT_SIZE);
@@ -35,10 +46,10 @@ public class BloomFilter {
 	 * @param element the element to be added
 	 * @return true if the element was added; false if it existed already
 	 */
-	public boolean add(BitSet element) {
+	public synchronized boolean add(BitSet element) {
 		int code = element.hashCode();
-		int hash = this.hash(code);
-		int bucket = Math.abs(hash % this.size);
+		//int hash = MurmurHash.hash(code); // TODO: really needed or is hashCode() already good enough?
+		int bucket = Math.abs(code % this.size);
 		
 		if (this.bits.get(bucket))
 			return false;
@@ -47,30 +58,12 @@ public class BloomFilter {
 		return true;
 	}
 	
+	static final int hash(Object key) {
+        int h;
+        return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
+    }
+	
 	private synchronized void set(int bucket) {
 		this.bits.set(bucket);
-	}
-
-	// MurmurHash
-	private int hash(int data) {
-		int m = 0x5bd1e995;
-		int r = 24;
-
-		int h = 0;
-
-		int k = (int) data * m;
-		k ^= k >>> r;
-		h ^= k * m;
-
-		k = (int) (data >> 32) * m;
-		k ^= k >>> r;
-		h *= m;
-		h ^= k * m;
-
-		h ^= h >>> 13;
-		h *= m;
-		h ^= h >>> 15;
-
-		return h;
 	}
 }

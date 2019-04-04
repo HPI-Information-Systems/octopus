@@ -9,6 +9,8 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 import akka.event.LoggingAdapter;
 import de.hpi.octopus.actors.Storekeeper.PlisMessage;
@@ -62,7 +64,6 @@ public class Dataset {
 			int numStrippedClusters = plis[i].length;
 			attributes[i] = new Attribute(i, numRecords - numNonUniqueValues + numStrippedClusters);
 		}
-		
 		Arrays.sort(attributes);
 
 		// Debug output
@@ -115,7 +116,7 @@ public class Dataset {
 		log.info("Done creating pli records");
 		
 		// Debug output
-//		for (int i = 0; i < 50; i++) {
+//		for (int i = 0; i < 1000; i++) {
 //			log.info(Utils.recordToString(this.records[i]));
 //		}
 //		log.info("-------88---------");
@@ -126,6 +127,14 @@ public class Dataset {
 			
 			for (int i = 0; i < pli.length; i++) {
 				int[] cluster = pli[i];
+				
+			//	Random rnd = ThreadLocalRandom.current(); // TODO: Add random shuffling to make sortations different? (if two attributes are the same, then its probably good if one gets discarded early on, because keeping both isn't worth it anyway. So its not a got idea?)
+			//	for (int j = cluster.length - 1; j > 0; j--) {
+			//		int index = rnd.nextInt(j + 1);
+			//		int a = cluster[index];
+			//		cluster[index] = cluster[j];
+			//		cluster[j] = a;
+			//	}
 				
 				final int attribute = attr;
 				Comparator<Integer> comparator;

@@ -232,11 +232,8 @@ public class Preprocessor extends AbstractMaster {
 		// Send attribute vectors to indexers
 		for (int attribute = 0; attribute < this.attribute2indexer.size(); attribute++) {
 			final String[] values = new String[batch.size()];
-			int i = 0;
-			for (List<String> record : batch) {
-				values[i] = record.get(attribute);
-				i++;
-			}
+			for (int i = 0; i < batch.size(); i++)
+				values[i] = batch.get(i).get(attribute);
 			this.attribute2indexer.get(attribute).tell(new IndexingMessage(attribute, values, this.watermark), this.self());
 		}
 		this.pendingResponses = this.attribute2indexer.size();

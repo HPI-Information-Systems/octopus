@@ -15,6 +15,7 @@ import de.hpi.octopus.actors.listeners.ProgressListener;
 import de.hpi.octopus.actors.masters.Preprocessor;
 import de.hpi.octopus.actors.masters.Preprocessor.PreprocessingTaskMessage;
 import de.hpi.octopus.actors.masters.Profiler;
+import de.hpi.octopus.actors.masters.Profiler2;
 import de.hpi.octopus.actors.slaves.Indexer;
 import de.hpi.octopus.actors.slaves.Validator;
 import de.metanome.algorithm_integration.input.RelationalInputGenerator;
@@ -63,23 +64,25 @@ public class OctopusMaster extends OctopusSystem {
 					int bufferSize = 100; // TODO: make parameter
 					system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new PreprocessingTaskMessage(relationalInputGenerator, bufferSize), ActorRef.noSender());
 				}
-					
 			}
 		});
 		
 		if (startPaused) {
-			final Scanner scanner = new Scanner(System.in);
-			String line = scanner.nextLine();
-			System.out.println(line);
+			try (final Scanner scanner = new Scanner(System.in)) {
+				String line = scanner.nextLine();
+				System.out.println(line);
+			}
 			
 			int bufferSize = 100; // TODO: make parameter
 			system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new PreprocessingTaskMessage(relationalInputGenerator, bufferSize), ActorRef.noSender());
 		}
 		
-		try {
-			Await.ready(system.whenTerminated(), Duration.create(1, TimeUnit.MINUTES));
-		} catch (TimeoutException | InterruptedException e) {
-			e.printStackTrace();
+		while (true) {
+			try {
+				Await.ready(system.whenTerminated(), Duration.create(1, TimeUnit.MINUTES));
+				break;
+			} catch (TimeoutException | InterruptedException e) {
+			}
 		}
 		
 		System.out.println("The end!");

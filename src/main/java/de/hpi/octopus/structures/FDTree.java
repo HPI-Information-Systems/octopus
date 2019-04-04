@@ -5,10 +5,7 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
 
-import lombok.Getter;
-
-@Getter
-public class FDTree extends FDTreeElement {
+public class FDTree extends FDTreeElement implements FDStore {
 
 	protected int depth;
 	protected int numAttributes;
@@ -37,6 +34,11 @@ public class FDTree extends FDTreeElement {
 	}
 	
 	@Override
+	public int getNumAttributes() {
+		return this.numAttributes;
+	}
+	
+	@Override
 	public void removeChild(int attribute) {
 		this.children[attribute] = null;
 	//	for (FDTreeElement child : this.children)
@@ -45,11 +47,31 @@ public class FDTree extends FDTreeElement {
 	//	this.children = null; // Never set the children of the root to null. In this way, root is never considered to be a valid FD.
 	}
 	
+	@Override
+	public boolean containsLhs(BitSet lhs) {
+		if (lhs.cardinality() == 0)
+			return false;
+		
+		FDTreeElement element = this;
+		for (int current = lhs.nextSetBit(0); current >= 0; current = lhs.nextSetBit(current + 1)) {
+			element = element.children[current];
+			if (element == null)
+				return false;
+		}
+		
+		if (element instanceof FDTreeLeaf)
+			return true;
+		
+		return false;
+	}
+	
+	@Override
 	public boolean containsLhsOrGeneralization(BitSet lhs) {
 		int nextLhsAttr = lhs.nextSetBit(0);
 		return this.containsLhsOrGeneralization(lhs, nextLhsAttr);
 	}
 
+	@Override
 	public List<BitSet> getLhsAndGeneralizations(BitSet lhs) {
 		List<BitSet> result = new ArrayList<>();
 		int nextLhsAttr = lhs.nextSetBit(0);
@@ -57,13 +79,15 @@ public class FDTree extends FDTreeElement {
 		return result;
 	}
 	
+	@Override
 	public void addLhs(BitSet lhs) {
 		// Add the elements for the lhs
 		FDTreeElement element = this;
 		int lhsSize = 0;
 		int attribute = lhs.nextSetBit(0);
 		for (int child = lhs.nextSetBit(attribute + 1); child >= 0; child = lhs.nextSetBit(child + 1)) {
-			element.addChild(this.numAttributes, attribute, new FDTreeElement());
+			if (!element.hasChild(attribute))
+				element.addChild(this.numAttributes, attribute, new FDTreeElement());
 			
 			element = element.getChildren()[attribute];
 			lhsSize++;
@@ -88,6 +112,7 @@ public class FDTree extends FDTreeElement {
 		this.depth = Math.max(this.depth, lhsSize);
 	}
 
+	@Override
 	public void removeLhs(BitSet lhs) {
 		// Unsafe fast-remove: 
 		// - if lhs does not exist, we get a NullPointerException
@@ -123,29 +148,33 @@ public class FDTree extends FDTreeElement {
 		}
 	}
 
+	@Override
 	public BitSet[] announceLhss(int amount) {
 		// Collect "amount"-many lhss from the head of the leaf elements list
 		BitSet[] lhss = new BitSet[amount];
 		for (int i = 0; i < amount; i++) {
-			if (this.first == null)
-				return Arrays.copyOf(lhss, i);
+			if (this.first == null) {
+				lhss = Arrays.copyOf(lhss, i);
+				break;
+			}
 			
 			lhss[i] = this.first.getLhs();
 			this.first = this.first.getNext();
 		}
 		
 		// Disconnect the collected lhss sequence from the linked list
-		if (this.first != null) {
-			this.first.getPrevious().setNext(null);
-			this.first.setPrevious(null);
+		if (this.first == null) {
+			this.last = null;
 		}
 		else {
-			this.last = null;
+			this.first.getPrevious().setNext(null);
+			this.first.setPrevious(null);
 		}
 		
 		return lhss;
 	}
 	
+	@Override
 	public void trimTree(int toDepth) {
 		if (this.depth <= toDepth)
 			return;
@@ -170,19 +199,4 @@ public class FDTree extends FDTreeElement {
 		// Trim leaf elements from the tree recursively. They remove themselves from the leaf list
 		this.trim(toDepth);
 	}
-	
-/*	public void removeLhs(BitSet lhs) {
-		// Unsafe fast-remove: 
-		// - if lhs does not exist, we get a NullPointerException
-		// - if only a specialization exists, this might get removed instead
-		int nextLhsAttr = lhs.nextSetBit(0);
-		this.removeLhs(lhs, nextLhsAttr);
-	}
-*/	
-/*	public List<BitSet> getLevel(int lhsSize) {
-		List<BitSet> levelElements = new ArrayList<BitSet>();
-		this.collectLevel(lhsSize, levelElements);
-		return levelElements;
-	}
-*/
 }

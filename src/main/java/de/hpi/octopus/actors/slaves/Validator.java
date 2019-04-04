@@ -5,8 +5,10 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import akka.actor.ActorRef;
@@ -19,6 +21,7 @@ import de.hpi.octopus.actors.masters.Profiler.SamplingResultMessage;
 import de.hpi.octopus.actors.masters.Profiler.ValidationResultMessage;
 import de.hpi.octopus.structures.BloomFilter;
 import de.hpi.octopus.structures.FunctionalDependency;
+import de.hpi.octopus.structures.ValueCombination;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 import lombok.AllArgsConstructor;
@@ -193,20 +196,45 @@ public class Validator extends AbstractSlave {
 		// Match all records with their "distance" neighbor w.r.t. the pli of the given "attribute"
 		BitSet match = new BitSet(this.plis.length);
 		int numComparisons = 0;
-		for (int[] cluster : this.plis[message.getAttribute()]) {
-			for (int record = 0; record < cluster.length - message.getDistance(); record++) {
-				for (int attribute = 0; attribute < this.plis.length; attribute++)
-					if (isMatch(record, record + message.getDistance(), attribute))
-						match.set(attribute);
-				numComparisons++;
-				
-				if (this.filter.add(match))
-					matches.add((BitSet) match.clone());
-				match.clear();
+		int numMatches = 0;
+/*		if (message.getDistance() == 1) { // For distance 1, we count all unique matches of this attribute but only report completely new matches
+			Set<BitSet> matchesSet = new HashSet<>();
+			for (int[] cluster : this.plis[message.getAttribute()]) {
+				for (int index = 0; index < cluster.length - message.getDistance(); index++) {
+					for (int attribute = 0; attribute < this.plis.length; attribute++)
+						if (isMatch(cluster[index], cluster[index + message.getDistance()], attribute))
+							match.set(attribute);
+					numComparisons++;
+					
+					if (!matchesSet.contains(match)) {
+						BitSet clone = (BitSet) match.clone();
+						matchesSet.add(clone);
+						if (this.filter.add(clone)) {
+							matches.add(clone);
+						}
+					}
+					match.clear();
+				}
 			}
+			numMatches = matchesSet.size();
 		}
-		int numMatches = matches.size();
-		
+		else { // For distances >1, we count and report only those matches that are completely new over all attributes
+*/			for (int[] cluster : this.plis[message.getAttribute()]) {
+				for (int index = 0; index < cluster.length - message.getDistance(); index++) {
+					for (int attribute = 0; attribute < this.plis.length; attribute++)
+						if (isMatch(cluster[index], cluster[index + message.getDistance()], attribute))
+							match.set(attribute);
+					numComparisons++;
+					
+					if (this.filter.add(match)) {
+						matches.add((BitSet) match.clone());
+					}
+					match.clear();
+				}
+			}
+			numMatches = matches.size();
+//		}
+			
 		// Convert matches into invalid FDs
 		List<FunctionalDependency> invalidFDs = new ArrayList<>(numMatches * this.plis.length / 2);
 		for (BitSet bitsetLhs : matches) {
@@ -277,27 +305,23 @@ public class Validator extends AbstractSlave {
 		// Send the result to the sender of the validation message
 		sender.tell(toValidationResultMessage(invalidFDs), this.self());
 		
-/*		if (sender.path().name().contains(DependencySteward.DEFAULT_NAME)) {
-			if (!invalidFDs.isEmpty()) {
-				System.out.println("AAAAaaahhh");
-			}
-			else {
-				System.out.println(rhs + " result is fine");
-			}
-		}
-*/		
 		return invalidFDs.size();
 	}
 	
 	private int[] findViolation(int[] lhs, int rhs) {
 		for (int[] cluster : this.plis[lhs[0]]) {
-			Map<int[], int[]> lhsValue2rhsValue = new HashMap<>();
+			Map<ValueCombination, int[]> lhsValue2rhsValue = new HashMap<>();
 			for (int recordID : cluster) {
 				// Get the rhs and the lhs value
+				int[] values = new int[lhs.length - 1];
+				for (int i = 0; i < values.length; i++)
+					values[i] = this.records[recordID][lhs[i + 1]];
+				
+				ValueCombination lhsValue = new ValueCombination(values);
 				int rhsValue = this.records[recordID][rhs];
-				int[] lhsValue = new int[lhs.length - 1];
-				for (int i = 0; i < lhsValue.length; i++)
-					lhsValue[i] = this.records[recordID][lhs[i + 1]];
+
+				if (lhsValue.isUnique())
+					continue;
 				
 				// If the lhs value is new, add a new mapping to the rhs value
 				if (!lhsValue2rhsValue.containsKey(lhsValue)) {
@@ -310,7 +334,7 @@ public class Validator extends AbstractSlave {
 				
 				// If the lhs value hash is known, test if the rhs value is the same and return a violation if not
 				int[] rhsValueAndRecord = lhsValue2rhsValue.get(lhsValue);
-				if (rhsValueAndRecord[0] != rhsValue) {
+				if (!isEqual(rhsValueAndRecord[0], rhsValue)) {
 					int[] violation = {recordID, rhsValueAndRecord[1]};
 					return violation;
 				}
