@@ -18,4 +18,23 @@ public class FunctionalDependency implements Comparable<FunctionalDependency> {
 			compare = other.getLhs().cardinality() - this.lhs.cardinality(); // Sort descendingly by lhs length to work on large lhss first; that is more efficient when updating the positive cover!
 		return compare;
 	}
+	
+	@Override
+	public boolean equals(Object obj) {
+		if (!(obj instanceof FunctionalDependency))
+			return false;
+		if (this == obj)
+			return true;
+
+		FunctionalDependency fd = (FunctionalDependency) obj;
+
+		if ((this.rhs == fd.getRhs()) && this.lhs.equals(fd.getLhs()))
+			return true;
+		return false;
+	}
+	
+	@Override
+	public int hashCode() {
+		return MurmurHash.hash(this.rhs) + this.lhs.hashCode();
+	}
 }

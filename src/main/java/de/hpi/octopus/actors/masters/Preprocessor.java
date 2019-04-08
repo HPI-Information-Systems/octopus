@@ -94,7 +94,7 @@ public class Preprocessor extends AbstractMaster {
 	private String relationName;
 	private String[] columnNames;
 	
-	private int watermark = 0;
+	private int watermark = 0; // If the preprocessing needs to be restarted, the watermark is used to identify old messages that need to be dropped
 	
 	private ActorRef datasetReader;
 	
@@ -261,29 +261,33 @@ public class Preprocessor extends AbstractMaster {
 
 	private void reallocateAttributes() {
 		int numAttributes = this.attribute2indexer.size();
-		int numAttributesPerIndexer = numAttributes / this.indexers.size();
+		int numAttributesPerIndexer = Math.max(numAttributes / this.indexers.size(), 1);
 		
 		final Object2IntOpenHashMap<ActorRef> counts = new Object2IntOpenHashMap<>(this.indexers.size());
-		this.indexers.forEach(indexer -> counts.put(indexer, 0));
 		this.attribute2indexer.values().forEach(indexer -> counts.put(indexer, counts.getInt(indexer) + 1));
 		
-		int reallocated = 0;
+		int idleIndexerAttributes = 0;
 		ActorRef idleIndexer = this.idleIndexers.remove(this.idleIndexers.size() - 1);
 		for (Entry<ActorRef> entry : counts.object2IntEntrySet()) {
 			ActorRef busyIndexer = entry.getKey();
 			int numSharableAttributes = entry.getIntValue() - numAttributesPerIndexer;
-			if (numSharableAttributes > 0) {
-				busyIndexer.tell(new SendAttributesMessage(numSharableAttributes, idleIndexer, this.watermark), this.self());
+			while (numSharableAttributes > 0) {
+				int numSendAttributes = Math.min(numSharableAttributes, numAttributesPerIndexer - idleIndexerAttributes);
+				numSharableAttributes = numSharableAttributes - numSendAttributes;
+				
+				busyIndexer.tell(new SendAttributesMessage(numSendAttributes, idleIndexer, this.watermark), this.self());
 				this.pendingResponses++;
-			}
-			
-			reallocated = reallocated + numSharableAttributes;
-			if (reallocated >= numAttributesPerIndexer) {
-				if (this.idleIndexers.isEmpty())
-					break;
-				idleIndexer = this.idleIndexers.remove(this.idleIndexers.size() - 1);
+				
+				idleIndexerAttributes = idleIndexerAttributes + numSendAttributes;
+				if (idleIndexerAttributes >= numAttributesPerIndexer) {
+					if (this.idleIndexers.isEmpty())
+						return;
+					idleIndexerAttributes = 0;
+					idleIndexer = this.idleIndexers.remove(this.idleIndexers.size() - 1);
+				}
 			}
 		}
+		this.idleIndexers.clear();
 	}
 	
 	private void handle(ReallocationMessage message) {

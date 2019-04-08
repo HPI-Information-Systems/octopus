@@ -252,6 +252,9 @@ public class Profiler extends AbstractMaster {
 			// Update the validation efficiency only for the dependency steward that actually requested this validation
 			if (rhs == validationRequester) {
 				double validationEfficiency = (double) (validationMessage.getLhss().length - lhss.length) / (double) validationMessage.getLhss().length;
+				
+//				this.log().info(rhs + " " + validationEfficiency);
+				
 				this.dependencyStewards[rhs].tell(new InvalidFDsMessage(lhss, true, true, validationEfficiency), this.self());
 			}
 			else {
@@ -276,7 +279,7 @@ public class Profiler extends AbstractMaster {
 		int comparisons = samplingResultMessage.getComparisons();
 		int matches = samplingResultMessage.getMatches();
 		
-		this.log().info(attribute + " " + distance + " " + comparisons + " " + matches);
+//		this.log().info(attribute + " " + distance + " " + comparisons + " " + matches);
 		
 		SamplingEfficiency samplingEfficiency = this.samplingEfficiencies[attribute];
 		this.prioritizedSamplingEfficiencies.remove(samplingEfficiency);
@@ -332,7 +335,7 @@ public class Profiler extends AbstractMaster {
 		// Get the validator that is waiting for this candidate message
 		ActorRef validator = this.waitingValidators.poll();
 		
-		// Assign the validator to somthing else if the candidate message did not deliver candidates
+		// Assign the validator to something else if the candidate message did not deliver candidates
 		if ((message.getLhss().length == 0) && (validator != null)) {
 			this.assign(validator);
 			return;
@@ -426,6 +429,9 @@ public class Profiler extends AbstractMaster {
 		
 		// Remove the dependency steward from the local list so that we do not forward any further results to it
 		this.dependencyStewards[stewardAttribute] = null;
+		
+		// Tell all workers that we can ignore this rhs attribute now, i.e., they do not need to send non-FDs with this rhs
+		// TODO
 		
 /*		System.out.println("Done " + stewardAttribute);
 		for (int i = 0; i < this.dataset.getNumAtrributes(); i++)

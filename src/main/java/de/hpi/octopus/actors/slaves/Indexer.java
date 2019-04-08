@@ -159,17 +159,24 @@ public class Indexer extends AbstractSlave {
 		Int2ObjectOpenHashMap<Map<String, IntArrayList>> sendAttribute2value2positions = new Int2ObjectOpenHashMap<>();
 		Int2IntOpenHashMap sendAttribute2offset = new Int2IntOpenHashMap();
 		
+		// Collect indexes and offsets for attributes that should be send
 		IntIterator attributeIterator = this.attribute2offset.keySet().iterator();
-		
-		for (int i = 0; i < message.getAmount(); i++) {
+		for (int i = 1; i <= message.getAmount(); i++) {
 			int sendAttribute = attributeIterator.nextInt();
 			
-			sendAttribute2value2positions.put(sendAttribute, this.attribute2value2positions.remove(sendAttribute));
-			sendAttribute2offset.put(sendAttribute, this.attribute2offset.remove(sendAttribute));
+			sendAttribute2value2positions.put(sendAttribute, this.attribute2value2positions.get(sendAttribute));
+			sendAttribute2offset.put(sendAttribute, this.attribute2offset.get(sendAttribute));
 		}
 		
-		ReceiveAttributesMessage receive = new ReceiveAttributesMessage(sendAttribute2value2positions, sendAttribute2offset, message.getWatermark());
-		message.getToActor().tell(receive, this.sender());
+		// Remove indexes and offsets for attributes that should be send
+		for (int sendAttribute : sendAttribute2offset.keySet()) {
+			this.attribute2value2positions.remove(sendAttribute);
+			this.attribute2offset.remove(sendAttribute);
+		}
+		
+		// Send indexes and offsets
+		ReceiveAttributesMessage receiveMessage = new ReceiveAttributesMessage(sendAttribute2value2positions, sendAttribute2offset, message.getWatermark());
+		message.getToActor().tell(receiveMessage, this.sender());
 	}
 	
 	private void handle(ReceiveAttributesMessage message) {

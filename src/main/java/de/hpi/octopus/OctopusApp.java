@@ -10,6 +10,7 @@ import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.Parameters;
 
 import de.hpi.octopus.structures.DatasetDescriptor;
+import de.metanome.algorithm_integration.AlgorithmConfigurationException;
 import de.metanome.algorithm_integration.configuration.ConfigurationSettingFileInput;
 import de.metanome.algorithm_integration.input.RelationalInputGenerator;
 import de.metanome.backend.input.file.DefaultFileInputGenerator;
@@ -18,7 +19,7 @@ public class OctopusApp {
 
 	public static final String ACTOR_SYSTEM_NAME = "octopus";
 	
-	public static void main(String[] args) throws Exception {
+	public static void main(String[] args) throws AlgorithmConfigurationException, Exception {
 		
     	MasterCommand masterCommand = new MasterCommand();
         SlaveCommand slaveCommand = new SlaveCommand();
@@ -29,14 +30,11 @@ public class OctopusApp {
 
 		DatasetDescriptor dataset = new DatasetDescriptor(
 				"ncvoter_Statewide_10001r_71c",//"ncvoter_Statewide_1024001r_71c", 
-				"/home/thorsten/Data/Development/workspace/papenbrock/HyFDTestRunner/data/", ".csv",
+				//"/home/thorsten/Data/Development/workspace/papenbrock/HyFDTestRunner/data/", ".csv",
+				"data/", ".csv",
 				true, StandardCharsets.UTF_8, ',', '"', '\\', "", false, true, 0, true);
         
-        try (RelationalInputGenerator relationalInputGenerator = new DefaultFileInputGenerator(new ConfigurationSettingFileInput(
-				dataset.getDatasetPathNameEnding(), true, dataset.getAttributeSeparator(), dataset.getAttributeQuote(), 
-				dataset.getAttributeEscape(), dataset.isAttributeStrictQuotes(), dataset.isAttributeIgnoreLeadingWhitespace(), 
-				dataset.getReaderSkipLines(), dataset.isFileHasHeader(), dataset.isReaderSkipDifferingLines(), dataset.getAttributeNullString()))) {
-            
+        try {
         	jCommander.parse(args);
 
             if (jCommander.getParsedCommand() == null) {
@@ -45,7 +43,13 @@ public class OctopusApp {
 
             switch (jCommander.getParsedCommand()) {
                 case OctopusMaster.MASTER_ROLE:
-                    OctopusMaster.start(ACTOR_SYSTEM_NAME, masterCommand.workers, masterCommand.host, masterCommand.port, relationalInputGenerator, null, false);
+                	try (RelationalInputGenerator relationalInputGenerator = new DefaultFileInputGenerator(new ConfigurationSettingFileInput(
+            				dataset.getDatasetPathNameEnding(), true, dataset.getAttributeSeparator(), dataset.getAttributeQuote(), 
+            				dataset.getAttributeEscape(), dataset.isAttributeStrictQuotes(), dataset.isAttributeIgnoreLeadingWhitespace(), 
+            				dataset.getReaderSkipLines(), dataset.isFileHasHeader(), dataset.isReaderSkipDifferingLines(), dataset.getAttributeNullString()))) {
+                	
+                		OctopusMaster.start(ACTOR_SYSTEM_NAME, masterCommand.workers, masterCommand.host, masterCommand.port, relationalInputGenerator, null, false);
+                	}
                     break;
                 case OctopusSlave.SLAVE_ROLE:
                     OctopusSlave.start(ACTOR_SYSTEM_NAME, slaveCommand.workers, slaveCommand.host, slaveCommand.port, slaveCommand.masterhost, slaveCommand.masterport);
@@ -53,7 +57,6 @@ public class OctopusApp {
                 default:
                     throw new AssertionError();
             }
-
         } catch (ParameterException e) {
             System.out.printf("Could not parse args: %s\n", e.getMessage());
             if (jCommander.getParsedCommand() == null) {
