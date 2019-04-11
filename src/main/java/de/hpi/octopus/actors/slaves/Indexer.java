@@ -66,7 +66,7 @@ public class Indexer extends AbstractSlave {
 	public static class ReceiveAttributesMessage implements Serializable {
 		private static final long serialVersionUID = 9204994179561311962L;
 		private ReceiveAttributesMessage() {}
-		private Int2ObjectOpenHashMap<Map<String, IntArrayList>> attribute2value2positions = new Int2ObjectOpenHashMap<>();
+		private Int2ObjectOpenHashMap<Map<String, IntArrayList>> attribute2value2positions = new Int2ObjectOpenHashMap<>(); // TODO: send in multiple peaces!
 		private Int2IntOpenHashMap attribute2offset = new Int2IntOpenHashMap();
 		private int watermark;
 	}

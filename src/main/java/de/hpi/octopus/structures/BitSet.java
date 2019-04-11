@@ -35,6 +35,12 @@ public class BitSet implements Cloneable, Serializable {
 	}
 
 	/**
+	 * FOR (DE-)SERIALIZATION ONLY!
+	 */
+	public BitSet() {
+	}
+	
+	/**
 	 * Construct a new {@code BitSet} backed by the given worlds array. All bits are set according the the given words array.
 	 * @param words that are directly (i.e. without cloning) used as a backing words array for this new {@code BitSet}
 	 * @return a new {@code BitSet} instance with the given words backing it
