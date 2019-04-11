@@ -3,8 +3,6 @@ package de.hpi.octopus.structures;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 
-import java.util.BitSet;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,7 +23,7 @@ public class BloomFilterTest {
 		
 		BloomFilter filter = new BloomFilter();
 		
-		BitSet bitset = new BitSet();
+		BitSet bitset = new BitSet(20);
 		assertTrue(filter.add(bitset));
 		assertFalse(filter.add(bitset));
 		

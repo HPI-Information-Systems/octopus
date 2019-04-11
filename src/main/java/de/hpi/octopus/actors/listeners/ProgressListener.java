@@ -2,13 +2,13 @@ package de.hpi.octopus.actors.listeners;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.BitSet;
 
 import akka.actor.AbstractLoggingActor;
 import akka.actor.ActorRef;
 import akka.actor.PoisonPill;
 import akka.actor.Props;
 import de.hpi.octopus.actors.Reaper;
+import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.Dataset;
 import de.metanome.algorithm_integration.ColumnCombination;
 import de.metanome.algorithm_integration.ColumnIdentifier;

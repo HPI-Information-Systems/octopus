@@ -1,7 +1,6 @@
 package de.hpi.octopus.structures;
 
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;

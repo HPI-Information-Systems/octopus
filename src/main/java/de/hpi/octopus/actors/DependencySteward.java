@@ -7,7 +7,6 @@ import java.io.Serializable;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.BitSet;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -18,6 +17,7 @@ import akka.actor.Props;
 import de.hpi.octopus.actors.listeners.ProgressListener;
 import de.hpi.octopus.actors.masters.Profiler.CandidateMessage;
 import de.hpi.octopus.actors.masters.Profiler.FDsUpdatedMessage;
+import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.FDStore;
 import de.hpi.octopus.structures.FDTree;

@@ -1,6 +1,5 @@
 package de.hpi.octopus.structures;
 
-import java.util.BitSet;
 import java.util.List;
 
 import lombok.Getter;

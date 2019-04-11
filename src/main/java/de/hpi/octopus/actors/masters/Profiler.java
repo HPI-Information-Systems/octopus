@@ -1,7 +1,6 @@
 package de.hpi.octopus.actors.masters;
 
 import java.io.Serializable;
-import java.util.BitSet;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
@@ -21,6 +20,7 @@ import de.hpi.octopus.actors.slaves.Validator;
 import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
 import de.hpi.octopus.actors.slaves.Validator.TerminateMessage;
 import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
+import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.DependencyStewardRing;
 import de.hpi.octopus.structures.SamplingEfficiency;
@@ -359,7 +359,7 @@ public class Profiler extends AbstractMaster {
 		while (this.dependencyStewardRing.isIdle(message.getRhs()) && !this.idleValidators.isEmpty())
 			this.assign(this.idleValidators.poll());
 	}
-
+	
 	private void assign(ActorRef validator) {
 		// Let the validator idle if no discovery task is present yet
 		if (this.dataset == null) {

@@ -1,6 +1,5 @@
 package de.hpi.octopus.actors.masters;
 
-import java.util.BitSet;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -27,9 +26,9 @@ import de.hpi.octopus.actors.slaves.Validator;
 import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
 import de.hpi.octopus.actors.slaves.Validator.TerminateMessage;
 import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
+import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.DependencyStewardRing;
-import de.hpi.octopus.structures.FDSet;
 import de.hpi.octopus.structures.FDStore;
 import de.hpi.octopus.structures.FDTree;
 import de.hpi.octopus.structures.SamplingEfficiency;
@@ -310,7 +309,8 @@ public class Profiler2 extends AbstractMaster {
 			
 			// Collect all valid lhss
 			BitSet allAttributes = new BitSet(numAttributes);
-			allAttributes.set(0, numAttributes);
+			for (int j = 0; j < numAttributes; j++)
+				allAttributes.set(j);
 			
 			List<BitSet> allLhss = this.fdss[i].getLhsAndGeneralizations(allAttributes);
 			
@@ -329,7 +329,8 @@ public class Profiler2 extends AbstractMaster {
 		
 		// Collect all valid lhss
 		BitSet allAttributes = new BitSet(numAttributes);
-		allAttributes.set(0, numAttributes);
+		for (int j = 0; j < numAttributes; j++)
+			allAttributes.set(j);
 		
 /*		for (int i = 0; i < numAttributes; i++) { 
 			List<BitSet> allLhss = this.fdss[i].getLhsAndGeneralizations(allAttributes);
@@ -575,7 +576,7 @@ public class Profiler2 extends AbstractMaster {
 		while (this.dependencyStewardRing.isIdle(message.getRhs()) && !this.idleValidators.isEmpty())
 			this.assign(this.idleValidators.poll());
 	}
-
+	
 	private void assign(ActorRef validator) {
 		// Let the validator idle if no discovery task is present yet
 		if (this.dataset == null) {

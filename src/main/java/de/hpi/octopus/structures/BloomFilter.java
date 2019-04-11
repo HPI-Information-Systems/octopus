@@ -1,13 +1,5 @@
 package de.hpi.octopus.structures;
 
-import java.util.ArrayList;
-import java.util.BitSet;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
-import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
-
 public class BloomFilter {
 
 	public static int DEFAULT_SIZE = 83886080; // 10 MB
@@ -15,11 +7,6 @@ public class BloomFilter {
 	private final BitSet bits;
 	private final int size;
 	
-	private final HashSet<Integer> set = new HashSet<>();
-	private final Set<BitSet> set2 = new HashSet<>();
-	private final ObjectOpenHashSet<BitSet> set3 = new ObjectOpenHashSet<>();
-	private final List<BitSet> list = new ArrayList<>();
-
 	public BloomFilter() {
 		this.bits = new BitSet(DEFAULT_SIZE);
 		this.size = DEFAULT_SIZE;

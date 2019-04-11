@@ -2,7 +2,6 @@ package de.hpi.octopus.actors.slaves;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -17,6 +16,8 @@ import de.hpi.octopus.actors.Storekeeper.SendFilterMessage;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.masters.Profiler.SamplingResultMessage;
 import de.hpi.octopus.actors.masters.Profiler.ValidationResultMessage;
+import de.hpi.octopus.serialization.OctopusMessage;
+import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.BloomFilter;
 import de.hpi.octopus.structures.FunctionalDependency;
 import de.hpi.octopus.structures.ValueCombination;
@@ -46,7 +47,7 @@ public class Validator extends AbstractSlave {
 	////////////////////
 
 	@Data @AllArgsConstructor @SuppressWarnings("unused")
-	public static class ValidationMessage implements Serializable {
+	public static class ValidationMessage implements Serializable {// OctopusMessage {//
 		private static final long serialVersionUID = -7643194361868862395L;
 		private ValidationMessage() {}
 		private BitSet[] lhss;

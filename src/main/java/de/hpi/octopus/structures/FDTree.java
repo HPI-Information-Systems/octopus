@@ -2,7 +2,6 @@ package de.hpi.octopus.structures;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.List;
 
 public class FDTree extends FDTreeElement implements FDStore {
