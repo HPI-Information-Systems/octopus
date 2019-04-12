@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import akka.actor.ActorRef;
 import akka.actor.Props;
@@ -66,8 +67,10 @@ public class Indexer extends AbstractSlave {
 	public static class ReceiveAttributesMessage implements Serializable {
 		private static final long serialVersionUID = 9204994179561311962L;
 		private ReceiveAttributesMessage() {}
-		private Int2ObjectOpenHashMap<Map<String, IntArrayList>> attribute2value2positions = new Int2ObjectOpenHashMap<>(); // TODO: send in multiple peaces!
-		private Int2IntOpenHashMap attribute2offset = new Int2IntOpenHashMap();
+		private int[] attributes;
+		private int[] offsets;
+		private String[][] values;
+		private int[][][] positions;
 		private int watermark;
 	}
 
@@ -174,17 +177,56 @@ public class Indexer extends AbstractSlave {
 			this.attribute2offset.remove(sendAttribute);
 		}
 		
+		// Transform multimap into more compact arrays
+		int[] attributes = new int[sendAttribute2value2positions.size()];
+		int[] offsets = new int[sendAttribute2value2positions.size()];
+		String[][] values = new String[sendAttribute2value2positions.size()][];
+		int[][][] positions = new int[sendAttribute2value2positions.size()][][];
+		
+		int i = 0;
+		for (it.unimi.dsi.fastutil.ints.Int2ObjectMap.Entry<Map<String, IntArrayList>> attributeEntry : sendAttribute2value2positions.int2ObjectEntrySet()) {
+			int attribute = attributeEntry.getIntKey();
+			int offset = sendAttribute2offset.get(attribute);
+			
+			attributes[i] = attribute;
+			offsets[i] = offset;
+			values[i] = new String[sendAttribute2value2positions.get(attribute).size()];
+			positions[i] = new int[sendAttribute2value2positions.get(attribute).size()][];
+			
+			int j = 0;
+			for (Entry<String, IntArrayList> valueEntry : attributeEntry.getValue().entrySet()) {
+				String value = valueEntry.getKey();
+				int[] position = valueEntry.getValue().toIntArray();
+				
+				values[i][j] = value;
+				positions[i][j] = position;
+				
+				j++;
+			}
+			
+			i++;
+		}
+		
 		// Send indexes and offsets
-		ReceiveAttributesMessage receiveMessage = new ReceiveAttributesMessage(sendAttribute2value2positions, sendAttribute2offset, message.getWatermark());
+		ReceiveAttributesMessage receiveMessage = new ReceiveAttributesMessage(attributes, offsets, values, positions, message.getWatermark());
 		message.getToActor().tell(receiveMessage, this.sender());
 	}
 	
 	private void handle(ReceiveAttributesMessage message) {
-		int[] attributes = message.getAttribute2offset().keySet().toIntArray();
+		int[] attributes = message.getAttributes();
 		
-		for (int attribute : attributes) {
-			this.attribute2offset.put(attribute, message.getAttribute2offset().get(attribute));
-			this.attribute2value2positions.put(attribute, message.getAttribute2value2positions().get(attribute));
+		for (int i = 0; i < attributes.length; i++) {
+			int attribute = message.getAttributes()[i];
+			int offset = message.getOffsets()[i];
+			String[] values = message.getValues()[i];
+			int[][] positions = message.getPositions()[i];
+			
+			Map<String, IntArrayList> value2positions = new HashMap<String, IntArrayList>(values.length + values.length / 5); // initialize 20% larger than it is currently
+			for (int j = 0; j < values.length; j++)
+				value2positions.put(values[j], IntArrayList.wrap(positions[j]));
+			
+			this.attribute2offset.put(attribute, offset);
+			this.attribute2value2positions.put(attribute, value2positions);
 		}
 		
 		this.sender().tell(new ReallocationMessage(attributes, message.getWatermark()), this.self());
