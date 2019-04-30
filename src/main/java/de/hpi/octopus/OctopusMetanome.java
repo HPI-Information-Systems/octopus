@@ -133,33 +133,18 @@ public class OctopusMetanome implements FunctionalDependencyAlgorithm, BooleanPa
 	
 	@Override
 	public void execute() throws AlgorithmExecutionException {
-		
 		if (this.inputGenerator == null)
 			throw new AlgorithmConfigurationException("No input generator set!");
 		if (this.resultReceiver == null)
 			throw new AlgorithmConfigurationException("No result receiver set!");
 		
+		String host;
+		try {
+            host = InetAddress.getLocalHost().getHostAddress();
+        } catch (UnknownHostException e) {
+            host = "localhost";
+        }
 		
-		DatasetDescriptor dataset = new DatasetDescriptor(
-				"ncvoter_Statewide_10001r_71c",//"ncvoter_Statewide_1024001r_71c", 
-				"/home/thorsten/Data/Development/workspace/papenbrock/HyFDTestRunner/data/", ".csv",
-				true, StandardCharsets.UTF_8, ',', '"', '\\', "", false, true, 0, true);
-		
-		try (RelationalInputGenerator relationalInputGenerator = new DefaultFileInputGenerator(new ConfigurationSettingFileInput(
-				dataset.getDatasetPathNameEnding(), true, dataset.getAttributeSeparator(), dataset.getAttributeQuote(), 
-				dataset.getAttributeEscape(), dataset.isAttributeStrictQuotes(), dataset.isAttributeIgnoreLeadingWhitespace(), 
-				dataset.getReaderSkipLines(), dataset.isFileHasHeader(), dataset.isReaderSkipDifferingLines(), dataset.getAttributeNullString()))) {
-            
-			String host;
-			try {
-                host = InetAddress.getLocalHost().getHostAddress();
-            } catch (UnknownHostException e) {
-                host = "localhost";
-            }
-			
-            OctopusMaster.start("octopus", 4, host, 7877, this.inputGenerator, this.resultReceiver, false); // TODO: Make these parameters
-        } catch (Exception e) {
-			e.printStackTrace();
-		}
+        OctopusMaster.start("octopus", 4, host, 7877, this.inputGenerator, this.resultReceiver, false); // TODO: Make these parameters
 	}
 }

@@ -11,12 +11,12 @@ import java.util.function.Function;
 import akka.actor.ActorRef;
 import akka.actor.PoisonPill;
 import akka.actor.Props;
+import de.hpi.octopus.actors.LargeMessageProxy.LargeMessage;
 import de.hpi.octopus.actors.Storekeeper.SendDataMessage;
 import de.hpi.octopus.actors.Storekeeper.SendFilterMessage;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.masters.Profiler.SamplingResultMessage;
 import de.hpi.octopus.actors.masters.Profiler.ValidationResultMessage;
-import de.hpi.octopus.serialization.OctopusMessage;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.BloomFilter;
 import de.hpi.octopus.structures.FunctionalDependency;
@@ -206,11 +206,10 @@ public class Validator extends AbstractSlave {
 					numComparisons++;
 					
 					if (!matchesSet.contains(match)) {
-						BitSet clone = (BitSet) match.clone();
+						BitSet clone = match.clone();
 						matchesSet.add(clone);
-						if (this.filter.add(clone)) {
+						if (this.filter.add(clone))
 							matches.add(clone);
-						}
 					}
 					match.clear();
 				}
@@ -225,9 +224,8 @@ public class Validator extends AbstractSlave {
 							match.set(attribute);
 					numComparisons++;
 					
-					if (this.filter.add(match)) {
-						matches.add((BitSet) match.clone());
-					}
+					if (this.filter.add(match))
+						matches.add(match.clone());
 					match.clear();
 				}
 			}
@@ -248,7 +246,7 @@ public class Validator extends AbstractSlave {
 		// Send the result to the sender of the sampling message
 		ValidationResultMessage validationResult = toValidationResultMessage(invalidFDs);
 		SamplingResultMessage samplingResult = new SamplingResultMessage(validationResult.getInvalidLhss(), validationResult.getInvalidRhss(), numComparisons, numMatches);
-		sender.tell(samplingResult, this.self());
+		this.largeMessageProxy.tell(new LargeMessage<>(samplingResult, sender), this.self());
 		
 		return invalidFDs.size();
 	}
@@ -302,7 +300,8 @@ public class Validator extends AbstractSlave {
 		}
 		
 		// Send the result to the sender of the validation message
-		sender.tell(toValidationResultMessage(invalidFDs), this.self());
+		ValidationResultMessage validationMessage = toValidationResultMessage(invalidFDs);
+		this.largeMessageProxy.tell(new LargeMessage<>(validationMessage, sender), this.self());
 		
 		return invalidFDs.size();
 	}

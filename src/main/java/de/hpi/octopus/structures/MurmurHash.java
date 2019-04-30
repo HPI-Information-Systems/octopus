@@ -15,11 +15,11 @@ public class MurmurHash {
 
 		int h = 0;
 
-		int k = (int) data * m;
+		int k = data * m;
 		k ^= k >>> r;
 		h ^= k * m;
 
-		k = (int) (data >> 32) * m;
+		k = (data >> 32) * m;
 		k ^= k >>> r;
 		h *= m;
 		h ^= k * m;

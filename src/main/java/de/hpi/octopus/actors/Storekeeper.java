@@ -61,6 +61,9 @@ public class Storekeeper extends AbstractLoggingActor {
 	/////////////////
 
 	private final Cluster cluster = Cluster.get(this.context().system());
+
+	private final ActorRef largeMessageProxy = this.context().actorOf(LargeMessageProxy.props(), LargeMessageProxy.DEFAULT_NAME);
+	
 	private ActorSelection profiler;
 	
 	private Dataset dataset;

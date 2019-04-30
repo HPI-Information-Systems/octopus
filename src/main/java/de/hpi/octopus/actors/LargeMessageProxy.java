@@ -39,9 +39,13 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 	public static class LargeMessage<T> implements Serializable {
 		private static final long serialVersionUID = 2940665245810221108L;
 		private LargeMessage() {}
+		public LargeMessage(T message, ActorRef receiver) {
+			this.message = message;
+			this.receiver = receiver;
+		}
 		private T message;
 		private ActorRef receiver;
-		private boolean serializeWhenLocal; // For testing ...
+		private boolean serializeWhenLocal = false; // For testing ...
 	}
 
 	@Data @AllArgsConstructor @SuppressWarnings("unused")
@@ -70,9 +74,9 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 	}
 	
 	@Data @AllArgsConstructor @SuppressWarnings("unused")
-	public static class RequestBytesMessage implements Serializable {
+	public static class AckBytesMessage implements Serializable {
 		private static final long serialVersionUID = -8119751796961718320L;
-		private RequestBytesMessage() {}
+		private AckBytesMessage() {}
 		private String transferKey;
 	}
 	
@@ -115,7 +119,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 				.match(StartLargeMessage.class, this::handle)
 				.match(AckStartLargeMessage.class, this::handle)
 				.match(BytesMessage.class, this::handle)
-				.match(RequestBytesMessage.class, this::handle)
+				.match(AckBytesMessage.class, this::handle)
 				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
 				.build();
 	}
@@ -163,7 +167,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 		byte[] bytes = KryoPoolSingleton.get().toBytesWithClass(largeMessage.getMessage()); // TODO: toBytesWithoutClass() and then send class info as int
 	//	byte[] bytes = KryoPoolSingleton.get().toBytesWithoutClass(largeMessage.getMessage());
 		
-		System.out.println(bytes.length + " many bytes serializes; " + Arrays.hashCode(bytes) + " is their hash code");
+//		this.log().info(bytes.length + " bytes serialized; " + Arrays.hashCode(bytes) + " is their hash code");
 		
 		// Initialize a sender state for this message
 		String transferKey = senderCounter + "#" + receiverCounter;
@@ -174,7 +178,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 		this.sender().tell(bytesMessage, this.self());
 	}
 	
-	private void handle(RequestBytesMessage message) {
+	private void handle(AckBytesMessage message) {
 		BytesMessage bytesMessage = this.getNextBytesMessage(message.getTransferKey());
 		this.sender().tell(bytesMessage, this.self());
 	}
@@ -215,7 +219,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 		if (chunk.length == MAX_MESSAGE_SIZE) {
 			this.largeMessagesBeingReceived.get(transferKey).getBytes().add(chunk);
 			
-			this.sender().tell(new RequestBytesMessage(transferKey), this.self());
+			this.sender().tell(new AckBytesMessage(transferKey), this.self());
 			return;
 		}
 		
@@ -235,11 +239,11 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 			i++;
 		}
 		
-		System.out.println(bytes.length + " = " + i + " many bytes received; " + Arrays.hashCode(bytes) + " is their hash code");
-		
 		// De-serialize the large message
 		Object deserializedMessage = KryoPoolSingleton.get().fromBytes(bytes); // TODO: use class info from somewhere else and then fromBytes(bytes, clazz)
 	//	Object deserializedMessage = KryoPoolSingleton.get().fromBytes(bytes, Indexer.ReceiveAttributesCompactMessage.class);
+
+//		this.log().info(bytes.length + " = " + i + " bytes de-serialized; " + Arrays.hashCode(bytes) + " is their hash code");
 		
 		// Forward the large message to the parent
 		state.getReceiver().tell(deserializedMessage, state.getSender());

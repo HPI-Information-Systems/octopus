@@ -190,7 +190,7 @@ public class Indexer extends AbstractSlave {
 		// Send indexes and offsets
 		ReceiveAttributesMessage receiveAttributesMessage = new ReceiveAttributesMessage(sendAttribute2value2positions, sendAttribute2offset, message.getWatermark());
 		ReceiveAttributesCompactMessage receiveAttributesCompactMessage = this.compactMesage(receiveAttributesMessage); // TODO: Compact or not compact?
-		this.largeMessageProxy.tell(new LargeMessage<>(receiveAttributesCompactMessage, message.getToActor(), false), this.sender());
+		this.largeMessageProxy.tell(new LargeMessage<>(receiveAttributesCompactMessage, message.getToActor()), this.sender());
 	}
 	
 	private void handle(ReceiveAttributesCompactMessage message) {

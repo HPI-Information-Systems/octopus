@@ -3,7 +3,6 @@ package de.hpi.octopus.testing;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletionStage;
-import java.util.function.BiConsumer;
 
 import akka.Done;
 import akka.NotUsed;
@@ -14,7 +13,6 @@ import akka.pattern.Patterns;
 import akka.stream.ActorMaterializer;
 import akka.stream.Materializer;
 import akka.stream.SourceRef;
-import akka.stream.javadsl.Flow;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import akka.stream.javadsl.StreamRefs;

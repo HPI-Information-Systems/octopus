@@ -18,7 +18,7 @@ public class FDTreeLeaf extends FDTreeElement {
 	public FDTreeLeaf(BitSet lhs, FDTreeLeaf next, FDTreeLeaf previous) {
 		super();
 		
-		this.lhs = (BitSet) lhs.clone();
+		this.lhs = lhs.clone();
 		this.next = next;
 		this.previous = previous;
 	}

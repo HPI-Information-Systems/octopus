@@ -47,7 +47,7 @@ public class OctopusApp {
             				dataset.getDatasetPathNameEnding(), true, dataset.getAttributeSeparator(), dataset.getAttributeQuote(), 
             				dataset.getAttributeEscape(), dataset.isAttributeStrictQuotes(), dataset.isAttributeIgnoreLeadingWhitespace(), 
             				dataset.getReaderSkipLines(), dataset.isFileHasHeader(), dataset.isReaderSkipDifferingLines(), dataset.getAttributeNullString()))) {
-                	
+            		
                 		OctopusMaster.start(ACTOR_SYSTEM_NAME, masterCommand.workers, masterCommand.host, masterCommand.port, relationalInputGenerator, null, false);
                 	}
                     break;

@@ -10,7 +10,6 @@ import akka.actor.ActorRef;
 import akka.actor.ActorSelection;
 import akka.actor.Props;
 import akka.actor.Terminated;
-import akka.cluster.Cluster;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 

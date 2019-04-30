@@ -1,4 +1,4 @@
-package de.hpi.octopus.actors.masters;
+package de.hpi.octopus.testing;
 
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -16,6 +16,9 @@ import de.hpi.octopus.actors.DependencySteward.CandidateRequestMessage;
 import de.hpi.octopus.actors.DependencySteward.FinalizeMessage;
 import de.hpi.octopus.actors.DependencySteward.InvalidFDsMessage;
 import de.hpi.octopus.actors.Storekeeper;
+import de.hpi.octopus.actors.masters.AbstractMaster;
+import de.hpi.octopus.actors.masters.Profiler;
+import de.hpi.octopus.actors.masters.AbstractMaster.RegistrationMessage;
 import de.hpi.octopus.actors.masters.Profiler.CandidateMessage;
 import de.hpi.octopus.actors.masters.Profiler.DiscoveryTaskMessage;
 import de.hpi.octopus.actors.masters.Profiler.FDsUpdatedMessage;

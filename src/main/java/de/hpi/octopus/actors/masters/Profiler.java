@@ -15,6 +15,8 @@ import de.hpi.octopus.actors.DependencySteward;
 import de.hpi.octopus.actors.DependencySteward.CandidateRequestMessage;
 import de.hpi.octopus.actors.DependencySteward.FinalizeMessage;
 import de.hpi.octopus.actors.DependencySteward.InvalidFDsMessage;
+import de.hpi.octopus.actors.LargeMessageProxy.LargeMessage;
+import de.hpi.octopus.actors.Storekeeper.PlisMessage;
 import de.hpi.octopus.actors.listeners.ProgressListener;
 import de.hpi.octopus.actors.slaves.Validator;
 import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
@@ -227,7 +229,8 @@ public class Profiler extends AbstractMaster {
 	}
 
 	private void handle(SendPlisMessage mesage) {
-		this.sender().tell(this.dataset.toPlisMessage(), this.self());
+		PlisMessage message = this.dataset.toPlisMessage();
+		this.largeMessageProxy.tell(new LargeMessage<>(message, this.sender()), this.self());
 	}
 	
 	protected void handle(ValidationResultMessage validationResultMessage) {

@@ -37,7 +37,7 @@ public class FDSet implements FDStore {
 	
 	@Override
 	public void addLhs(BitSet lhs) {
-		BitSet clone = (BitSet) lhs.clone();
+		BitSet clone = lhs.clone();
 		this.lhss.add(clone);
 		this.unannounced.add(clone);
 	}
