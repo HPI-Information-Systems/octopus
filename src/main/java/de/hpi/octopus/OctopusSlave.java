@@ -31,10 +31,12 @@ public class OctopusSlave extends OctopusSystem {
 				for (int i = 0; i < workers; i++)
 					system.actorOf(Indexer.props(), Indexer.DEFAULT_NAME + i);
 
-				ActorRef storekeeper = system.actorOf(Storekeeper.props(), Storekeeper.DEFAULT_NAME);
-				
-				for (int i = 0; i < workers; i++)
-					system.actorOf(Validator.props(storekeeper), Validator.DEFAULT_NAME + i);
+				if (workers > 0) {
+					ActorRef storekeeper = system.actorOf(Storekeeper.props(), Storekeeper.DEFAULT_NAME);
+					
+					for (int i = 0; i < workers; i++)
+						system.actorOf(Validator.props(storekeeper), Validator.DEFAULT_NAME + i);
+				}
 			}
 		});
 	}

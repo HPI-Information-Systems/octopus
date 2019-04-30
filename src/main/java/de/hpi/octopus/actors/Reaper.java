@@ -73,7 +73,7 @@ public class Reaper extends AbstractLoggingActor {
 		final ActorRef sender = this.getSender();
 		
 		if (this.watchees.remove(sender)) {
-//			this.log().info("Reaping {}.", sender);
+//			this.log().info("Reaping {} so that {} actors are still alive.", sender, this.watchees.size());
 			if (this.watchees.isEmpty()) {
 				this.log().info("Every local actor has been reaped. Terminating the actor system...");
 				this.context().system().terminate();

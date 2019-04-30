@@ -114,8 +114,11 @@ public class TestActor extends AbstractLoggingActor {
 		Patterns.pipe(completionStage, context().dispatcher()).to(this.other);
 	}
 	
-	private void handle(SourceRef<ByteString> sourceRef) {
-		CompletionStage<Done> completionStage = sourceRef.getSource().runWith(Sink.foreach(log -> System.out.println(log)), this.materializer);
+	private void handle(SourceRef<?> sourceRef) {
+		@SuppressWarnings("unchecked")
+		SourceRef<ByteString> sourceRefByteString = (SourceRef<ByteString>) sourceRef;
+		
+		CompletionStage<Done> completionStage = sourceRefByteString.getSource().runWith(Sink.foreach(log -> System.out.println(log)), this.materializer);
 		
 		completionStage.whenComplete((done, throwable) -> {
 			// ...
