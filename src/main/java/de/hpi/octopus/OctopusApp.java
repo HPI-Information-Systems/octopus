@@ -21,7 +21,7 @@ public class OctopusApp {
 	
 	public static void main(String[] args) throws AlgorithmConfigurationException, Exception {
 		
-    	MasterCommand masterCommand = new MasterCommand();
+		MasterCommand masterCommand = new MasterCommand();
         SlaveCommand slaveCommand = new SlaveCommand();
         JCommander jCommander = JCommander.newBuilder()
         	.addCommand(OctopusMaster.MASTER_ROLE, masterCommand)

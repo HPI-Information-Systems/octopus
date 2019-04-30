@@ -23,31 +23,33 @@ public class OctopusMessageSerializer extends SerializerWithStringManifest imple
 	@Override
 	public byte[] toBinary(Object o) {
 		if (o instanceof ValidationMessage) {
-			ValidationMessage msg = (ValidationMessage) o;
-			
-			byte[] bytes = new byte[4 + this.binarySizeOf(msg.getLhss())]; // rhs + lhss
-			ByteBuffer buf = ByteBuffer.wrap(bytes); // TODO: use buffer pool for bytebuffers
-			
-			this.toBinary(o, buf);
-			
-			return bytes;
+			return this.toBinary((ValidationMessage) o);
 		}
-		
-		throw new IllegalArgumentException("Unknown type: " + o);
+		else {		
+			throw new IllegalArgumentException("Unknown type: " + o);
+		}
+	}
+	
+	public byte[] toBinary(ValidationMessage msg) {
+		byte[] bytes = new byte[4 + this.binarySizeOf(msg.getLhss())]; // rhs + lhss
+		ByteBuffer buf = ByteBuffer.wrap(bytes); // TODO: use buffer pool for bytebuffers
+		this.toBinary(msg, buf);
+		return bytes;
 	}
 
 	@Override
 	public void toBinary(Object o, ByteBuffer buf) {
 		if (o instanceof ValidationMessage) {
-			ValidationMessage msg = (ValidationMessage) o;
-			
-			buf.putInt(msg.getRhs());
-			this.putBitSets(msg.getLhss(), buf);
-			
-			return;
+			this.toBinary((ValidationMessage) o);
 		}
-		
-		throw new IllegalArgumentException("Unknown type: " + o);
+		else {		
+			throw new IllegalArgumentException("Unknown type: " + o);
+		}
+	}
+	
+	public void toBinary(ValidationMessage msg, ByteBuffer buf) {
+		buf.putInt(msg.getRhs());
+		this.putBitSets(msg.getLhss(), buf);
 	}
 
 	@Override
@@ -59,13 +61,17 @@ public class OctopusMessageSerializer extends SerializerWithStringManifest imple
 	@Override
 	public Object fromBinary(ByteBuffer buf, String manifest) throws NotSerializableException {
 		if (manifest.equals(ValidationMessage.class.getSimpleName())) {
-			final int rhs = buf.getInt();
-			final BitSet[] lhss = this.getBitSets(buf);
-			
-			return new ValidationMessage(lhss, rhs);
+			return this.fromBinaryValidationMessage(buf);
 		}
-		
-		throw new IllegalArgumentException("Unknown type: " + manifest);
+		else {		
+			throw new IllegalArgumentException("Unknown type: " + manifest);
+		}
+	}
+	
+	public Object fromBinaryValidationMessage(ByteBuffer buf) throws NotSerializableException {
+		final int rhs = buf.getInt();
+		final BitSet[] lhss = this.getBitSets(buf);
+		return new ValidationMessage(lhss, rhs);
 	}
 	
 	public int binarySizeOf(BitSet[] bitsets) {

@@ -10,6 +10,7 @@ import java.util.Map.Entry;
 
 import akka.actor.ActorRef;
 import akka.actor.Props;
+import de.hpi.octopus.actors.LargeMessageProxy.LargeMessage;
 import de.hpi.octopus.actors.masters.Preprocessor;
 import de.hpi.octopus.actors.masters.Preprocessor.IndexingDoneMessage;
 import de.hpi.octopus.actors.masters.Preprocessor.IndexingResultMessage;
@@ -62,18 +63,27 @@ public class Indexer extends AbstractSlave {
 		private ActorRef toActor;
 		private int watermark;
 	}
-	
+
 	@Data @AllArgsConstructor @SuppressWarnings("unused")
 	public static class ReceiveAttributesMessage implements Serializable {
 		private static final long serialVersionUID = 9204994179561311962L;
 		private ReceiveAttributesMessage() {}
+		private Int2ObjectOpenHashMap<Map<String, IntArrayList>> attribute2value2positions = new Int2ObjectOpenHashMap<>();
+		private Int2IntOpenHashMap attribute2offset = new Int2IntOpenHashMap();
+		private int watermark;
+	}
+
+	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	public static class ReceiveAttributesCompactMessage implements Serializable {
+		private static final long serialVersionUID = 9204994179561311962L;
+		private ReceiveAttributesCompactMessage() {}
 		private int[] attributes;
 		private int[] offsets;
 		private String[][] values;
 		private int[][][] positions;
 		private int watermark;
 	}
-
+	
 	/////////////////
 	// Actor State //
 	/////////////////
@@ -95,7 +105,7 @@ public class Indexer extends AbstractSlave {
 				.match(IndexingMessage.class, this::handle)
 				.match(FinalizeMessage.class, this::handle)
 				.match(SendAttributesMessage.class, this::handle)
-				.match(ReceiveAttributesMessage.class, this::handle)
+				.match(ReceiveAttributesCompactMessage.class, this::handle)
 				.build()
 				.orElse(super.createReceive());
 	}
@@ -177,7 +187,28 @@ public class Indexer extends AbstractSlave {
 			this.attribute2offset.remove(sendAttribute);
 		}
 		
-		// Transform multimap into more compact arrays
+		// Send indexes and offsets
+		ReceiveAttributesMessage receiveAttributesMessage = new ReceiveAttributesMessage(sendAttribute2value2positions, sendAttribute2offset, message.getWatermark());
+		ReceiveAttributesCompactMessage receiveAttributesCompactMessage = this.compactMesage(receiveAttributesMessage); // TODO: Compact or not compact?
+		this.largeMessageProxy.tell(new LargeMessage<>(receiveAttributesCompactMessage, message.getToActor(), false), this.sender());
+	}
+	
+	private void handle(ReceiveAttributesCompactMessage message) {
+		ReceiveAttributesMessage uncompactedMessage = this.uncompactMesage(message);
+		int[] attributes = uncompactedMessage.getAttribute2offset().keySet().toIntArray();
+		
+		for (int attribute : attributes) {
+			this.attribute2offset.put(attribute, uncompactedMessage.getAttribute2offset().get(attribute));
+			this.attribute2value2positions.put(attribute, uncompactedMessage.getAttribute2value2positions().get(attribute));
+		}
+		
+		this.sender().tell(new ReallocationMessage(attributes, message.getWatermark()), this.self());
+	}
+	
+	private ReceiveAttributesCompactMessage compactMesage(ReceiveAttributesMessage message) {
+		Int2ObjectOpenHashMap<Map<String, IntArrayList>> sendAttribute2value2positions = message.getAttribute2value2positions();
+		Int2IntOpenHashMap sendAttribute2offset = message.getAttribute2offset();
+		
 		int[] attributes = new int[sendAttribute2value2positions.size()];
 		int[] offsets = new int[sendAttribute2value2positions.size()];
 		String[][] values = new String[sendAttribute2value2positions.size()][];
@@ -206,13 +237,13 @@ public class Indexer extends AbstractSlave {
 			
 			i++;
 		}
-		
-		// Send indexes and offsets
-		ReceiveAttributesMessage receiveMessage = new ReceiveAttributesMessage(attributes, offsets, values, positions, message.getWatermark());
-		message.getToActor().tell(receiveMessage, this.sender());
+		return new ReceiveAttributesCompactMessage(attributes, offsets, values, positions, message.getWatermark());
 	}
 	
-	private void handle(ReceiveAttributesMessage message) {
+	private ReceiveAttributesMessage uncompactMesage(ReceiveAttributesCompactMessage message) {
+		Int2ObjectOpenHashMap<Map<String, IntArrayList>> attribute2value2positions = new Int2ObjectOpenHashMap<>();
+		Int2IntOpenHashMap attribute2offset = new Int2IntOpenHashMap();
+		
 		int[] attributes = message.getAttributes();
 		
 		for (int i = 0; i < attributes.length; i++) {
@@ -225,10 +256,9 @@ public class Indexer extends AbstractSlave {
 			for (int j = 0; j < values.length; j++)
 				value2positions.put(values[j], IntArrayList.wrap(positions[j]));
 			
-			this.attribute2offset.put(attribute, offset);
-			this.attribute2value2positions.put(attribute, value2positions);
+			attribute2offset.put(attribute, offset);
+			attribute2value2positions.put(attribute, value2positions);
 		}
-		
-		this.sender().tell(new ReallocationMessage(attributes, message.getWatermark()), this.self());
+		return new ReceiveAttributesMessage(attribute2value2positions, attribute2offset, message.getWatermark());
 	}
 }

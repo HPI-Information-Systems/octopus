@@ -266,6 +266,8 @@ public class Preprocessor extends AbstractMaster {
 		final Object2IntOpenHashMap<ActorRef> counts = new Object2IntOpenHashMap<>(this.indexers.size());
 		this.attribute2indexer.values().forEach(indexer -> counts.put(indexer, counts.getInt(indexer) + 1));
 		
+		System.out.println("Reallocation!");
+		
 		int idleIndexerAttributes = 0;
 		ActorRef idleIndexer = this.idleIndexers.remove(this.idleIndexers.size() - 1);
 		for (Entry<ActorRef> entry : counts.object2IntEntrySet()) {
@@ -277,6 +279,8 @@ public class Preprocessor extends AbstractMaster {
 				
 				busyIndexer.tell(new SendAttributesMessage(numSendAttributes, idleIndexer, this.watermark), this.self());
 				this.pendingResponses++;
+				
+				System.out.println(numSendAttributes + " form " + busyIndexer.path() + " to " + idleIndexer.path());
 				
 				idleIndexerAttributes = idleIndexerAttributes + numSendAttributes;
 				if (idleIndexerAttributes >= numAttributesPerIndexer) {

@@ -1,10 +1,24 @@
 package de.hpi.octopus.testing;
 
 import java.io.Serializable;
+import java.nio.ByteBuffer;
+import java.util.concurrent.CompletionStage;
+import java.util.function.BiConsumer;
 
+import akka.Done;
+import akka.NotUsed;
 import akka.actor.AbstractLoggingActor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
+import akka.pattern.Patterns;
+import akka.stream.ActorMaterializer;
+import akka.stream.Materializer;
+import akka.stream.SourceRef;
+import akka.stream.javadsl.Flow;
+import akka.stream.javadsl.Sink;
+import akka.stream.javadsl.Source;
+import akka.stream.javadsl.StreamRefs;
+import akka.util.ByteString;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -54,7 +68,9 @@ public class TestActor extends AbstractLoggingActor {
 	public Receive createReceive() {
 		return receiveBuilder()
 				.match(TestMessage.class, this::handle)
-				//.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
+				.match(String.class, this::handle)
+				.match(SourceRef.class, this::handle)
+				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
 				.build();
 	}
 
@@ -83,7 +99,28 @@ public class TestActor extends AbstractLoggingActor {
 			this.data[0] = 88;
 			this.sender().tell(message, this.self());
 		}
-
 	}
 	
+	private Materializer materializer = ActorMaterializer.create(this.context());
+	
+//	private Flow<String, Byte, NotUsed> serialize(String object) {
+//		return Flow.of(String.class).mapConcat(object -> object.getBytes());
+//	}
+	
+	private void handle(String message) {
+		ByteString serializedMessage = ByteString.fromByteBuffer(ByteBuffer.wrap(message.getBytes()));
+		Source<ByteString, NotUsed> source = Source.single(serializedMessage);
+		
+		CompletionStage<SourceRef<ByteString>> completionStage = source.runWith(StreamRefs.sourceRef(), this.materializer);
+
+		Patterns.pipe(completionStage, context().dispatcher()).to(this.other);
+	}
+	
+	private void handle(SourceRef<ByteString> sourceRef) {
+		CompletionStage<Done> completionStage = sourceRef.getSource().runWith(Sink.foreach(log -> System.out.println(log)), this.materializer);
+		
+		completionStage.whenComplete((done, throwable) -> {
+			// ...
+		});
+	}
 }

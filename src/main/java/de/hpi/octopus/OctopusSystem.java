@@ -12,7 +12,7 @@ import scala.concurrent.duration.Duration;
 
 public class OctopusSystem {
 
-	protected static Config createConfiguration(String actorSystemName, String actorSystemRole, String host, int port, String masterhost, int masterport) {
+	public static Config createConfiguration(String actorSystemName, String actorSystemRole, String host, int port, String masterhost, int masterport) {
 		
 		// Create the Config with fallback to the application config
 		return ConfigFactory.parseString(
@@ -25,7 +25,7 @@ public class OctopusSystem {
 			.withFallback(ConfigFactory.load("octopus"));
 	}
 	
-	protected static ActorSystem createSystem(String actorSystemName, Config config) {
+	public static ActorSystem createSystem(String actorSystemName, Config config) {
 		
 		// Create the ActorSystem
 		final ActorSystem system = ActorSystem.create(actorSystemName, config);

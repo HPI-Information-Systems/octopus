@@ -18,6 +18,7 @@ import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.masters.Profiler2;
 import de.hpi.octopus.actors.slaves.Indexer;
 import de.hpi.octopus.actors.slaves.Validator;
+import de.hpi.octopus.testing.TestActor;
 import de.metanome.algorithm_integration.configuration.ConfigurationSettingFileInput;
 import de.metanome.algorithm_integration.input.RelationalInputGenerator;
 import de.metanome.algorithm_integration.result_receiver.FunctionalDependencyResultReceiver;
@@ -61,6 +62,10 @@ public class OctopusMaster extends OctopusSystem {
 			//	ActorRef testActor2 = system.actorOf(TestActor.props(testActor1), TestActor.DEFAULT_NAME + 2);
 			//	int[] data = {1,2,3};
 			//	testActor2.tell(new TestActor.TestMessage(data), ActorRef.noSender());
+				
+			//	ActorRef testActor1 = system.actorOf(TestActor.props(null), TestActor.DEFAULT_NAME + 1);
+			//	ActorRef testActor2 = system.actorOf(TestActor.props(testActor1), TestActor.DEFAULT_NAME + 2);
+			//	testActor2.tell("Hello", ActorRef.noSender());
 				
 				if (!startPaused) {
 					int bufferSize = 100; // TODO: make parameter

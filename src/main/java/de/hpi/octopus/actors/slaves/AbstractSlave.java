@@ -1,17 +1,23 @@
 package de.hpi.octopus.actors.slaves;
 
 import akka.actor.AbstractLoggingActor;
+import akka.actor.ActorRef;
 import akka.cluster.Cluster;
 import akka.cluster.ClusterEvent.CurrentClusterState;
 import akka.cluster.ClusterEvent.MemberUp;
 import akka.cluster.Member;
 import akka.cluster.MemberStatus;
 import de.hpi.octopus.OctopusMaster;
+import de.hpi.octopus.actors.LargeMessageProxy;
 import de.hpi.octopus.actors.Reaper;
 import de.hpi.octopus.actors.masters.AbstractMaster;
 
 public abstract class AbstractSlave extends AbstractLoggingActor {
 
+	////////////////////////
+	// Actor Construction //
+	////////////////////////
+	
 	////////////////////
 	// Actor Messages //
 	////////////////////
@@ -22,6 +28,8 @@ public abstract class AbstractSlave extends AbstractLoggingActor {
 	
 	protected final Cluster cluster = Cluster.get(this.context().system());
 
+	protected final ActorRef largeMessageProxy = this.context().actorOf(LargeMessageProxy.props(), LargeMessageProxy.DEFAULT_NAME);
+	
 	/////////////////////
 	// Actor Lifecycle //
 	/////////////////////

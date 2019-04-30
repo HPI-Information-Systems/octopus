@@ -3,13 +3,19 @@ package de.hpi.octopus.actors.masters;
 import java.io.Serializable;
 
 import akka.actor.AbstractLoggingActor;
+import akka.actor.ActorRef;
 import akka.actor.Terminated;
+import de.hpi.octopus.actors.LargeMessageProxy;
 import de.hpi.octopus.actors.Reaper;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
 public abstract class AbstractMaster extends AbstractLoggingActor {
 
+	////////////////////////
+	// Actor Construction //
+	////////////////////////
+	
 	////////////////////
 	// Actor Messages //
 	////////////////////
@@ -24,6 +30,8 @@ public abstract class AbstractMaster extends AbstractLoggingActor {
 	/////////////////
 	// Actor State //
 	/////////////////
+
+	protected final ActorRef largeMessageProxy = this.context().actorOf(LargeMessageProxy.props(), LargeMessageProxy.DEFAULT_NAME);
 	
 	/////////////////////
 	// Actor Lifecycle //
