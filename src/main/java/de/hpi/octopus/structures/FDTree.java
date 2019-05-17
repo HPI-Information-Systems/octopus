@@ -98,7 +98,7 @@ public class FDTree extends FDTreeElement implements FDStore {
 		
 		FDTreeLeaf leaf = (FDTreeLeaf) element.getChildren()[attribute];
 		
-		// Add the last element to the linked list of unannounced leaf elements
+		// Add the last element to the tail of the linked list of unannounced leaf elements
 		if (this.first == null) {
 			this.first = leaf;
 		}
@@ -107,6 +107,16 @@ public class FDTree extends FDTreeElement implements FDStore {
 		}
 		this.last = leaf;
 		
+		// Althernative: Add the last element to the head of the linked list of unannounced leaf elements
+/*		leaf.setNext(this.first);
+		if (this.last == null) {
+			this.last = leaf;
+		}
+		else {
+			this.first.setPrevious(leaf);
+		}
+		this.first = leaf;
+*/		
 		// Adjust the depth of this tree
 		this.depth = Math.max(this.depth, lhsSize);
 	}

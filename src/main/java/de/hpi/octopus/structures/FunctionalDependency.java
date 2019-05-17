@@ -6,6 +6,21 @@ import lombok.Getter;
 @Getter @AllArgsConstructor
 public class FunctionalDependency implements Comparable<FunctionalDependency> {
 
+	public static String toString(BitSet lhs, int rhs, Dataset dataset) {
+		StringBuffer buffer = new StringBuffer("[");
+		for (int attribute = lhs.nextSetBit(0); attribute >= 0; attribute = lhs.nextSetBit(attribute + 1)) {
+			buffer.append(dataset.getColumnNames()[attribute]);
+			buffer.append(", ");
+		}
+		if (buffer.length() > 2)
+			buffer.delete(buffer.length() - 2 , buffer.length());
+		buffer.append("] --> ");
+		buffer.append(dataset.getColumnNames()[rhs]);
+		buffer.append("\r\n");
+
+		return buffer.toString();
+	}
+	
 	private final BitSet lhs;
 	private final int rhs;
 	

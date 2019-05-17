@@ -5,12 +5,11 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Random;
-import java.util.concurrent.ThreadLocalRandom;
 
 import akka.event.LoggingAdapter;
 import de.hpi.octopus.actors.Storekeeper.PlisMessage;
@@ -232,5 +231,20 @@ public class Dataset {
 		for (int i = 0; i < this.columnNames.length; i++)
 			columnIdentifiers[i] = new ColumnIdentifier(this.relationName, this.columnNames[i]);
 		return columnIdentifiers;
+	}
+	
+	public Path createOutputPathFor(int rhs) {
+		String pathString = "results" + File.separatorChar + this.getRelationName();
+		String fileString = pathString + File.separatorChar + this.getColumnNames()[rhs] + ".txt";
+		
+		File path = new File(pathString);
+		if (!path.exists())
+			path.mkdirs();
+		
+		File file = new File(fileString);
+		if (file.exists())
+			file.delete();
+		
+		return Paths.get(fileString);
 	}
 }

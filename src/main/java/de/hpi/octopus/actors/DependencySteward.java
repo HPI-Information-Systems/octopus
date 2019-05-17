@@ -1,12 +1,11 @@
 package de.hpi.octopus.actors;
 
 import java.io.BufferedWriter;
-import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -21,6 +20,7 @@ import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.FDStore;
 import de.hpi.octopus.structures.FDTree;
+import de.hpi.octopus.structures.FunctionalDependency;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -67,7 +67,6 @@ public class DependencySteward extends AbstractLoggingActor {
 	@Data @AllArgsConstructor
 	public static class FinalizeMessage implements Serializable {
 		private static final long serialVersionUID = 1958938788143620773L;
-		private String outputPath;
 		private Dataset dataset;
 	}
 	
@@ -197,37 +196,17 @@ public class DependencySteward extends AbstractLoggingActor {
 		this.fds = null;
 		
 		// Write all FDs to disk
-		String pathString = message.getOutputPath() + File.separatorChar + message.getDataset().getRelationName();
-		String fileString = pathString + File.separatorChar + message.getDataset().getColumnNames()[this.rhs] + ".txt";
-		
-		File path = new File(pathString);
-		if (!path.exists())
-			path.mkdirs();
-		
-		File file = new File(fileString);
-		if (file.exists())
-			file.delete();
-		
-		try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(fileString), Charset.forName("UTF8"))) {
+		Path path = message.getDataset().createOutputPathFor(this.rhs);
+		try (BufferedWriter writer = Files.newBufferedWriter(path, Charset.forName("UTF8"))) {
 		    for (BitSet lhs : allLhss) {
-				StringBuffer buffer = new StringBuffer("[");
-				for (int attribute = lhs.nextSetBit(0); attribute >= 0; attribute = lhs.nextSetBit(attribute + 1)) {
-					buffer.append(message.getDataset().getColumnNames()[attribute]);
-					buffer.append(", ");
-				}
-				buffer.delete(buffer.length() - 2 , buffer.length());
-				buffer.append("] --> ");
-				buffer.append(message.getDataset().getColumnNames()[this.rhs]);
-				buffer.append("\r\n");
-
-				writer.write(buffer.toString());
+				writer.write(FunctionalDependency.toString(lhs, this.rhs, message.getDataset()));
 			}
 		} catch (IOException x) {
-		    this.log().error(x, x.getMessage());
+		    this.log().error("Failed storing results for rhs attribute " + this.rhs, x.getMessage());
 		}
 		
 		// Tell the progress listener that this dependency steward is done
-		this.context().actorSelection("/user/" + ProgressListener.DEFAULT_NAME).tell(new ProgressListener.FinishedMessage(allLhss.size(), allLhss.toArray(new BitSet[allLhss.size()]), this.rhs, message.getDataset()), ActorRef.noSender());
+		this.context().actorSelection("/user/" + ProgressListener.DEFAULT_NAME).tell(new ProgressListener.FinishedMessage(allLhss.toArray(new BitSet[allLhss.size()]), this.rhs, message.getDataset()), ActorRef.noSender());
 		
 		// Terminate
 		this.self().tell(PoisonPill.getInstance(), this.self());

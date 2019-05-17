@@ -9,6 +9,13 @@ public class MurmurHash {
 		return hash;
 	}
 	
+	public static int hashBy(int[] data, int[] positions) {
+		int hash = 0;
+		for (int i = 0; i < positions.length; i++)
+			hash += hash(data[positions[i]]);
+		return hash;
+	}
+	
 	public static int hash(int data) {
 		int m = 0x5bd1e995;
 		int r = 24;

@@ -306,41 +306,68 @@ public class Validator extends AbstractSlave {
 		return invalidFDs.size();
 	}
 	
+	// For ncvoter_Statewide_10001r_71c:
+	// Found 169316 FDs in 35985 ms	with <10
+	// Found 169316 FDs in 34399 ms	with <20
+	// Found 169316 FDs in 34732 ms	with <20
+	// Found 169316 FDs in 33652 ms	with <30
+	// Found 169316 FDs in 33413 ms	with <40
+	// Found 169316 FDs in 33729 ms	with <50
+	// Found 169316 FDs in 34854 ms	with <60
 	private int[] findViolation(int[] lhs, int rhs) {
 		for (int[] cluster : this.plis[lhs[0]]) {
-			Map<ValueCombination, int[]> lhsValue2rhsValue = new HashMap<>();
-			for (int recordID : cluster) {
-				// Get the rhs and the lhs value
-				int[] values = new int[lhs.length - 1];
-				for (int i = 0; i < values.length; i++)
-					values[i] = this.records[recordID][lhs[i + 1]];
-				
-				ValueCombination lhsValue = new ValueCombination(values);
-				int rhsValue = this.records[recordID][rhs];
-
-				if (lhsValue.isUnique())
-					continue;
-				
-				// If the lhs value is new, add a new mapping to the rhs value
-				if (!lhsValue2rhsValue.containsKey(lhsValue)) {
-					int[] rhsValueAndRecord = new int[2];
-					rhsValueAndRecord[0] = rhsValue;
-					rhsValueAndRecord[1] = recordID;
-					lhsValue2rhsValue.put(lhsValue, rhsValueAndRecord);
-					continue;
+			if (cluster.length < 40) { // For small clusters, compare all records directly without hashing
+				for (int i = 0; i < cluster.length - 1; i++) {
+					final int recordID1 = cluster[i];
+					
+					for (int j = i + 1; j < cluster.length; j++) {
+						final int recordID2 = cluster[j];
+						
+						if (this.isMatch(recordID1, recordID2, lhs))
+							if (!isMatch(recordID1, recordID2, rhs)) {
+								final int[] violation = {recordID1, recordID2};
+								return violation;
+							}
+					}
 				}
-				
-				// If the lhs value hash is known, test if the rhs value is the same and return a violation if not
-				int[] rhsValueAndRecord = lhsValue2rhsValue.get(lhsValue);
-				if (!isEqual(rhsValueAndRecord[0], rhsValue)) {
-					int[] violation = {recordID, rhsValueAndRecord[1]};
-					return violation;
+			}
+			else { // For large clusters, compare the records via hashing
+				final Map<ValueCombination, int[]> lhsValue2rhsValue = new HashMap<>();
+				for (int i = 0; i < cluster.length; i++) {
+					final int recordID = cluster[i];
+					
+					ValueCombination lhsValue = new ValueCombination(this.records[recordID], lhs);
+					final int rhsValue = this.records[recordID][rhs];
+
+					if (lhsValue.isUnique())
+						continue;
+					
+					// If the lhs value is new, add a new mapping to the rhs value
+					if (!lhsValue2rhsValue.containsKey(lhsValue)) {
+						final int[] rhsValueAndRecord = {rhsValue, recordID};
+						lhsValue2rhsValue.put(lhsValue, rhsValueAndRecord);
+						continue;
+					}
+					
+					// If the lhs value hash is known, test if the rhs value is the same and return a violation if not
+					final int[] rhsValueAndRecord = lhsValue2rhsValue.get(lhsValue);
+					if (!isEqual(rhsValueAndRecord[0], rhsValue)) {
+						final int[] violation = {recordID, rhsValueAndRecord[1]};
+						return violation;
+					}
 				}
 			}
 		}
 		return null;
 	}
 	
+	private boolean isMatch(final int recordID1, final int recordID2, final int[] attributes) {
+		for (int i = 0; i < attributes.length; i++)
+			if (!isEqual(this.records[recordID1][attributes[i]], this.records[recordID2][attributes[i]]))
+				return false;
+		return true;
+	}
+
 	private boolean isMatch(final int recordID1, final int recordID2, final int attribute) {
 		return isEqual(this.records[recordID1][attribute], this.records[recordID2][attribute]);
 	}

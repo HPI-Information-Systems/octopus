@@ -1,6 +1,11 @@
 package de.hpi.octopus.actors.masters;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
 import java.io.Serializable;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
@@ -8,6 +13,7 @@ import java.util.PriorityQueue;
 import java.util.Queue;
 
 import akka.actor.ActorRef;
+import akka.actor.ActorSelection;
 import akka.actor.PoisonPill;
 import akka.actor.Props;
 import akka.actor.Terminated;
@@ -18,6 +24,7 @@ import de.hpi.octopus.actors.DependencySteward.InvalidFDsMessage;
 import de.hpi.octopus.actors.LargeMessageProxy.LargeMessage;
 import de.hpi.octopus.actors.Storekeeper.PlisMessage;
 import de.hpi.octopus.actors.listeners.ProgressListener;
+import de.hpi.octopus.actors.listeners.ProgressListener.FinishedMessage;
 import de.hpi.octopus.actors.slaves.Validator;
 import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
 import de.hpi.octopus.actors.slaves.Validator.TerminateMessage;
@@ -25,6 +32,7 @@ import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.DependencyStewardRing;
+import de.hpi.octopus.structures.FunctionalDependency;
 import de.hpi.octopus.structures.SamplingEfficiency;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -154,17 +162,8 @@ public class Profiler extends AbstractMaster {
 			this.children--;
 			
 			// Terminate the profiling if all children, i.e., all dependency stewards are done
-			if (this.children == 0) {
-				this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
-				for (ActorRef validator : this.busyValidators.keySet())
-					validator.tell(new TerminateMessage(), ActorRef.noSender());
-				for (ActorRef validator : this.idleValidators)
-					validator.tell(new TerminateMessage(), ActorRef.noSender());
-				for (ActorRef validator : this.waitingValidators)
-					validator.tell(new TerminateMessage(), ActorRef.noSender());
-				
-				this.log().info("Finished discovery task.");
-			}
+			if (this.children == 0)
+				this.terminate();
 		}
 		
 		// If a validator terminates, we forget him and might need to reschedule his work
@@ -186,6 +185,18 @@ public class Profiler extends AbstractMaster {
 		}
 	}
 	
+	protected void terminate() {
+		this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
+		for (ActorRef validator : this.busyValidators.keySet())
+			validator.tell(new TerminateMessage(), ActorRef.noSender());
+		for (ActorRef validator : this.idleValidators)
+			validator.tell(new TerminateMessage(), ActorRef.noSender());
+		for (ActorRef validator : this.waitingValidators)
+			validator.tell(new TerminateMessage(), ActorRef.noSender());
+		
+		this.log().info("Finished discovery task.");
+	}
+	
 	protected void handle(DiscoveryTaskMessage message) throws Exception {
 		// Handle edge cases
 		if (this.dataset != null) {
@@ -197,31 +208,57 @@ public class Profiler extends AbstractMaster {
 			return;
 		}
 		
-		// TODO: we could check the special cases of {}->A for all attributes A here by testing if this.plis[A][0].length == this.numRecords or we keep ignoring all {}->A and consider B->A, C->A, D->A etc. as smallest FDs
-		
 		// Initialize local dataset with the given task; this also sorts the attributes by the number of their pli clusters
 		this.dataset = new Dataset(message, this.log());
-		
-		// Start one dependency steward for each attribute
 		int numAttributes = this.dataset.getNumAtrributes();
-		this.children = numAttributes;
+		
+		// Tell the progress listener to wait for all attributes being finished
+		ActorSelection progressListener = this.context().actorSelection("/user/" + ProgressListener.DEFAULT_NAME);
+		progressListener.tell(new ProgressListener.StewardsMessage(numAttributes), ActorRef.noSender());
+		
+		// Start one dependency steward for each attribute (or write the result directly if the rhs attribute is constant)
+		this.children = 0;
 		this.dependencyStewards = new ActorRef[numAttributes];
+		this.dependencyStewardRing = new DependencyStewardRing(numAttributes);
 		this.samplingEfficiencies = new SamplingEfficiency[numAttributes];
 		this.prioritizedSamplingEfficiencies = new PriorityQueue<SamplingEfficiency>(numAttributes);
 		for (int i = 0; i < numAttributes; i++) {
+			// Output []->Ai directly and ignore Ai (for candidate generation and sampling), if the attribute is constant
+			if ((this.dataset.getPlis()[i].length == 1) && (this.dataset.getPlis()[i][0].length == this.dataset.getNumRecords())) {
+				Path path = this.dataset.createOutputPathFor(i);
+				try (BufferedWriter writer = Files.newBufferedWriter(path, Charset.forName("UTF8"))) {
+				    writer.write(FunctionalDependency.toString(new BitSet(0), i, this.dataset));
+				} catch (IOException x) {
+				    this.log().error("Failed storing results for rhs attribute " + i, x.getMessage());
+				}
+				
+				// Make the dependency steward permanently busy so that it is never asked for more candidates
+				this.dependencyStewardRing.increaseBusy(i);
+				
+				// Tell the progress listener that this attribute is finished
+				BitSet[] lhss = new BitSet[1];
+				lhss[0] = new BitSet(0);
+				progressListener.tell(new FinishedMessage(lhss, i, this.dataset), this.self());
+				
+				continue;
+			}
+			
+			// Create the dependency steward
 			this.dependencyStewards[i] = this.context().actorOf(
 					DependencySteward.props(i, numAttributes, -1), 
 					DependencySteward.DEFAULT_NAME + i); // TODO: the maxDepth i.e. max FD size should be a parameter
 			this.context().watch(this.dependencyStewards[i]);
+			this.children++;
 			
+			// Create the sampling efficiency object
 			SamplingEfficiency samplingEfficiency = new SamplingEfficiency(i);
 			this.samplingEfficiencies[i] = samplingEfficiency;
 			this.prioritizedSamplingEfficiencies.add(samplingEfficiency);
 		}
-		this.dependencyStewardRing = new DependencyStewardRing(this.dependencyStewards.length);
 		
-		// Tell the progress listener to wait for the dependency stewards
-		this.context().actorSelection("/user/" + ProgressListener.DEFAULT_NAME).tell(new ProgressListener.StewardsMessage(numAttributes), ActorRef.noSender());
+		// End here, if there are no dependency stewards that require validation
+		if (this.children == 0)
+			this.terminate();
 		
 		// Assign initial work to all validators
 		while (!this.idleValidators.isEmpty())
@@ -312,7 +349,7 @@ public class Profiler extends AbstractMaster {
 		// The dependency steward is now one message less busy
 		this.dependencyStewardRing.decreaseBusy(message.getRhs());
 		
-		// The dependency steward may have new candidates now
+		// The dependency steward may have new candidates now \\ TODO: it could tell if it has candidates
 		this.dependencyStewardRing.setCandidates(message.getRhs(), true);
 		
 		// If the dependency steward updated its preference, the profiler has to update it, too
@@ -425,7 +462,7 @@ public class Profiler extends AbstractMaster {
 			return false;
 		
 		// Tell the dependency steward to finalize, i.e., write results and terminate	
-		this.dependencyStewards[stewardAttribute].tell(new FinalizeMessage("results", this.dataset), this.self());
+		this.dependencyStewards[stewardAttribute].tell(new FinalizeMessage(this.dataset), this.self());
 
 		// Make the dependency steward permanently busy so that it is never asked for more candidates
 		this.dependencyStewardRing.increaseBusy(stewardAttribute);

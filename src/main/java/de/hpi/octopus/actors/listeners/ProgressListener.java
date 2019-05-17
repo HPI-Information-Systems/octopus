@@ -53,7 +53,6 @@ public class ProgressListener extends AbstractLoggingActor {
 	public static class FinishedMessage implements Serializable {
 		private static final long serialVersionUID = -7509054641716826606L;
 		private FinishedMessage() {}
-		private int numFds;
 		private BitSet[] lhss;
 		private int rhs;
 		private Dataset dataset;
@@ -103,24 +102,30 @@ public class ProgressListener extends AbstractLoggingActor {
 	
 	private void handle(FinishedMessage message) {
 		this.activeStewards--;
-		this.numFDs = this.numFDs + message.getNumFds();
 		
+		if (message.getLhss() != null) {
+			// Count the discovered FDs
+			this.numFDs = this.numFDs + message.getLhss().length;
+		
+			// Report the discovered FDs to the result receiver
+			if (this.resultReceiver != null) { // TODO: at the moment, octopus writes the results to disk (dependencySteward and profiler) and it reports them to the Metanome interface, which writes them again; results should be written only once
+				ColumnIdentifier[] columnIndentifiers = message.getDataset().getColumnIdentifiers();
+				
+				ColumnIdentifier rhs = columnIndentifiers[message.getRhs()];
+				for (BitSet lhsAttributes : message.getLhss()) {
+					ArrayList<ColumnIdentifier> lhs = new ArrayList<>(lhsAttributes.cardinality());
+					for (int i = lhsAttributes.nextSetBit(0); i >= 0; i = lhsAttributes.nextSetBit(i + 1))
+						lhs.add(columnIndentifiers[i]);
+					
+					this.resultReceiver.acceptedResult(new FunctionalDependency(new ColumnCombination(lhs.toArray(new ColumnIdentifier[0])), rhs));
+				}
+			}
+		}
+
+		// Log the number of discovered FDs and the discovery time, if the overall discovery is done
 		if (this.activeStewards == 0) {
 			this.log().info("Found {} FDs in {} ms", this.numFDs, System.currentTimeMillis() - this.startTime);
 			this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
-		}
-		
-		if ((this.resultReceiver != null) && (message.getLhss() != null)) {
-			ColumnIdentifier[] columnIndentifiers = message.getDataset().getColumnIdentifiers();
-			
-			ColumnIdentifier rhs = columnIndentifiers[message.getRhs()];
-			for (BitSet lhsAttributes : message.getLhss()) {
-				ArrayList<ColumnIdentifier> lhs = new ArrayList<>(lhsAttributes.cardinality());
-				for (int i = lhsAttributes.nextSetBit(0); i >= 0; i = lhsAttributes.nextSetBit(i + 1))
-					lhs.add(columnIndentifiers[i]);
-				
-				this.resultReceiver.acceptedResult(new FunctionalDependency(new ColumnCombination(lhs.toArray(new ColumnIdentifier[0])), rhs));
-			}
 		}
 	}
 }

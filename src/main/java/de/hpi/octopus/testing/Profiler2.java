@@ -402,16 +402,11 @@ public class Profiler2 extends AbstractMaster {
 	
 	private int[] findViolation(int[] lhs, int rhs) {
 		for (int[] cluster : this.plis[lhs[0]]) {
-			Map<ValueCombination, int[]> lhsValue2rhsValue = new HashMap<>();
+			final Map<ValueCombination, int[]> lhsValue2rhsValue = new HashMap<>();
 			for (int recordID : cluster) {
-				// Get the rhs and the lhs value
-				int[] values = new int[lhs.length - 1];
-				for (int i = 0; i < values.length; i++)
-					values[i] = this.records[recordID][lhs[i + 1]];
-				
-				ValueCombination lhsValue = new ValueCombination(values);
-				int rhsValue = this.records[recordID][rhs];
-				
+				ValueCombination lhsValue = new ValueCombination(this.records[recordID], lhs);
+				final int rhsValue = this.records[recordID][rhs];
+
 				if (lhsValue.isUnique())
 					continue;
 				
@@ -425,9 +420,9 @@ public class Profiler2 extends AbstractMaster {
 				}
 				
 				// If the lhs value hash is known, test if the rhs value is the same and return a violation if not
-				int[] rhsValueAndRecord = lhsValue2rhsValue.get(lhsValue);
+				final int[] rhsValueAndRecord = lhsValue2rhsValue.get(lhsValue);
 				if (!isEqual(rhsValueAndRecord[0], rhsValue)) {
-					int[] violation = {recordID, rhsValueAndRecord[1]};
+					final int[] violation = {recordID, rhsValueAndRecord[1]};
 					return violation;
 				}
 			}
@@ -642,7 +637,7 @@ public class Profiler2 extends AbstractMaster {
 			return false;
 		
 		// Tell the dependency steward to finalize, i.e., write results and terminate	
-		this.dependencyStewards[stewardAttribute].tell(new FinalizeMessage("results", this.dataset), this.self());
+		this.dependencyStewards[stewardAttribute].tell(new FinalizeMessage(this.dataset), this.self());
 
 		// Make the dependency steward permanently busy so that it is never asked for more candidates
 		this.dependencyStewardRing.increaseBusy(stewardAttribute);
