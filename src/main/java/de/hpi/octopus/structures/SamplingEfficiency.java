@@ -22,16 +22,15 @@ public class SamplingEfficiency implements Comparable<SamplingEfficiency> {
 		return this.distance;
 	}
 	
-	public void update(int comparisons, int matches, int distance) {
+	public static double calculateEfficiency(int comparisons, int matches) {
+		return (comparisons == 0) ? 0 : (double) matches / (double) comparisons;
+	}
+	
+	public void update(double efficiency, int distance) {
 		if (this.distance > distance)
 			return;
 		
-		if (comparisons == 0) {
-			this.efficiency = 0;
-			return;
-		}
-		
-		this.efficiency = (double) matches / (double) comparisons;
+		this.efficiency = efficiency;
 	}
 	
 	public boolean hasStepped() {

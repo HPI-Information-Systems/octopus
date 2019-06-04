@@ -5,7 +5,6 @@ import java.util.List;
 
 import akka.event.LoggingAdapter;
 import de.hpi.octopus.actors.masters.Profiler.SamplingResultMessage;
-import de.hpi.octopus.actors.masters.Profiler.ValidationResultMessage;
 import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.BloomFilter;
@@ -45,17 +44,17 @@ public class Sampling {
 				match.clear();
 			}
 		}
-		final int numMatches = matches.size();
 		
 		// Convert matches into invalid FDs
 //		matches = this.filterSmallMatches(matches);
 		matches = this.pruneSubsets(matches);
 		final List<FunctionalDependency> invalidFDs = Conversion.matches2FDs(matches, this.plis.length);
+		
+		int numMatches = matches.size();
 		matches = null;
 		
 		// Send the result to the sender of the sampling message
-		final ValidationResultMessage validationResult = Conversion.fds2ValidationResultMessage(invalidFDs);
-		final SamplingResultMessage samplingResult = new SamplingResultMessage(validationResult.getInvalidLhss(), validationResult.getInvalidRhss(), numComparisons, numMatches);
+		final SamplingResultMessage samplingResult = Conversion.fds2SamplingResultMessage(invalidFDs, numComparisons, numMatches);
 		
 		return samplingResult;
 	}

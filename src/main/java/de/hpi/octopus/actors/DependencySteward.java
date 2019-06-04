@@ -55,7 +55,7 @@ public class DependencySteward extends AbstractLoggingActor {
 		private InvalidFDsMessage() {}
 		private BitSet[] invalidLhss;
 		private boolean validation;
-		private boolean own;
+		private int rhs; // The rhs of the dependency steward that requested the validation/sampling that led to this result message
 		private double efficiency;
 	}
 	
@@ -152,8 +152,8 @@ public class DependencySteward extends AbstractLoggingActor {
 			}
 		}
 		
-		// Update efficiencies and preference if necessary
-		if (message.isOwn()) {
+		// Update efficiencies and preference if the message is a response to your own request
+		if (message.getRhs() == this.rhs) {
 			if (message.isValidation()) { // TODO: Nochmal überdenken wie die Effizienz bewertet wird...
 				this.validationCalculationEfficiency = message.getEfficiency();
 				this.validationUpdateEfficiency = (double) numUpdates / (double) message.getInvalidLhss().length;

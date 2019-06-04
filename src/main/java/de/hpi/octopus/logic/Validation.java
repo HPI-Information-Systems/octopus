@@ -66,7 +66,7 @@ public class Validation {
 		}
 		
 		// Send the result to the sender of the validation message
-		final ValidationResultMessage validationMessage = Conversion.fds2ValidationResultMessage(invalidFDs);
+		final ValidationResultMessage validationMessage = Conversion.fds2ValidationResultMessage(invalidFDs, rhs, message.getLhss().length);
 		
 		return validationMessage;
 	}

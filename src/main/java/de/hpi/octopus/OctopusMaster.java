@@ -17,7 +17,6 @@ import de.hpi.octopus.actors.masters.Preprocessor.PreprocessingTaskMessage;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.slaves.Indexer;
 import de.hpi.octopus.actors.slaves.Validator;
-import de.hpi.octopus.testing.Profiler2;
 import de.hpi.octopus.testing.TestActor;
 import de.metanome.algorithm_integration.configuration.ConfigurationSettingFileInput;
 import de.metanome.algorithm_integration.input.RelationalInputGenerator;
