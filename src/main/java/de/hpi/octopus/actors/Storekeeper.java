@@ -2,6 +2,7 @@ package de.hpi.octopus.actors;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import akka.actor.AbstractLoggingActor;
@@ -64,6 +65,7 @@ public class Storekeeper extends AbstractLoggingActor {
 	
 	private Dataset dataset;
 	private BloomFilter filter;
+	private boolean[] finishedRhsAttributes;
 
 	private final List<ActorRef> waitingValidators = new ArrayList<>();
 	
@@ -119,7 +121,7 @@ public class Storekeeper extends AbstractLoggingActor {
 	private void handle(SendDataMessage message) {
 		// If the data is already present, send the data
 		if (this.dataset != null) {
-			final DataMessage dataMessage = new DataMessage(this.dataset.getPlis(), this.dataset.getRecords(), this.filter);
+			final DataMessage dataMessage = new DataMessage(this.dataset.getPlis(), this.dataset.getRecords(), this.filter, this.finishedRhsAttributes);
 			this.sender().tell(dataMessage, this.self());
 			return;
 		}
@@ -139,8 +141,12 @@ public class Storekeeper extends AbstractLoggingActor {
 		// Create a filter for this dataset
 		this.filter = new BloomFilter();
 		
+		// Create a finished attributes array
+		this.finishedRhsAttributes = new boolean[message.getPlis().length];
+		Arrays.fill(this.finishedRhsAttributes, false);
+		
 		// Create the data message
-		final DataMessage dataMessage = new DataMessage(this.dataset.getPlis(), this.dataset.getRecords(), this.filter);
+		final DataMessage dataMessage = new DataMessage(this.dataset.getPlis(), this.dataset.getRecords(), this.filter, this.finishedRhsAttributes);
 		
 		// Send the plis and pli-records to all validators waiting for it
 		for (ActorRef validator : this.waitingValidators)

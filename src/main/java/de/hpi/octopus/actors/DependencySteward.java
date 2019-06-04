@@ -163,10 +163,10 @@ public class DependencySteward extends AbstractLoggingActor {
 				this.samplingUpdateEfficiency = (double) numUpdates / (double) message.getInvalidLhss().length;
 			}
 			boolean validation = this.calculatePreference();
-			this.sender().tell(new FDsUpdatedMessage(this.rhs, true, validation), this.self());
+			this.sender().tell(new FDsUpdatedMessage(this.rhs, true, validation, this.fds.hasUnannounceLhss()), this.self());
 		}
 		else {
-			this.sender().tell(new FDsUpdatedMessage(this.rhs, false, false), this.self());
+			this.sender().tell(new FDsUpdatedMessage(this.rhs, false, false, this.fds.hasUnannounceLhss()), this.self());
 		}
 	}
 	

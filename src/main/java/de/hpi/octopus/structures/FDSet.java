@@ -55,6 +55,11 @@ public class FDSet implements FDStore {
 			announcees[i] = this.unannounced.removeFirst();
 		return announcees;
 	}
+
+	@Override
+	public boolean hasUnannounceLhss() {
+		return !this.unannounced.isEmpty();
+	}
 	
 	@Override
 	public List<BitSet> getLhsAndGeneralizations(BitSet lhs) {

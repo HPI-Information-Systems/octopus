@@ -12,25 +12,25 @@ import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.BloomFilter;
 import de.hpi.octopus.structures.FunctionalDependency;
 import de.hpi.octopus.structures.ValueCombination;
-import it.unimi.dsi.fastutil.ints.IntArrayList;
-import it.unimi.dsi.fastutil.ints.IntList;
 
-public class Validation {
+public class ValidationLogic {
 
 	private final int[][] records;
 	private final int[][][] plis;
 	private final BloomFilter filter;
+	private final boolean[] finishedRhsAttributes;
 	
 	@SuppressWarnings("unused")
 	private final LoggingAdapter log;
 	
-	public Validation(final int[][] records, final int[][][] plis, final BloomFilter filter, final LoggingAdapter log) {
+	public ValidationLogic(final int[][] records, final int[][][] plis, final BloomFilter filter, final boolean[] finishedRhsAttributes, final LoggingAdapter log) {
 		this.records = records;
 		this.plis = plis;
 		this.filter = filter;
+		this.finishedRhsAttributes = finishedRhsAttributes;
 		this.log = log;
 	}
-	
+
 	public ValidationResultMessage process(ValidationMessage message) {
 		// Initialize a container for the invalid FDs
 		List<FunctionalDependency> invalidFDs = new ArrayList<>(message.getLhss().length);
@@ -38,7 +38,7 @@ public class Validation {
 		// Process the validation message		
 		int rhs = message.getRhs();
 		for (BitSet lhsBitSet : message.getLhss()) { // The lhs should have at least one attribute
-			int[] lhs = Conversion.bitset2Array(lhsBitSet);
+			int[] lhs = ConversionLogic.bitset2Array(lhsBitSet);
 			
 			int[] violation = this.findViolation(lhs, rhs);
 			if (violation == null)
@@ -49,24 +49,21 @@ public class Validation {
 			
 			// Compare the two records that caused the violation to find violations for other FDs (= execute comparison suggestion)
 			BitSet invalidLhs = new BitSet(this.plis.length);
-			IntList invalidRhss = new IntArrayList();
-			for (int attribute = 0; attribute < this.plis.length; attribute++) {
-				if (Matching.isMatch(this.records[violation[0]], this.records[violation[1]], attribute))
+			for (int attribute = 0; attribute < this.plis.length; attribute++)
+				if (MatchingLogic.isMatch(this.records[violation[0]], this.records[violation[1]], attribute))
 					invalidLhs.set(attribute);
-				else
-					invalidRhss.add(attribute);
-			}
 			
 			// Add the comparison result to the filter so that we do not report the same result again during sampling
 			this.filter.add(invalidLhs);
 			
 			// Derive the fds from the match
-			for (int invalidRhs : invalidRhss)
-				invalidFDs.add(new FunctionalDependency(invalidLhs, invalidRhs));
+			for (int invalidRhs = 0; invalidRhs < this.plis.length; invalidRhs++)
+				if (!invalidLhs.get(invalidRhs) && !this.finishedRhsAttributes[invalidRhs])
+					invalidFDs.add(new FunctionalDependency(invalidLhs, invalidRhs));
 		}
 		
 		// Send the result to the sender of the validation message
-		final ValidationResultMessage validationMessage = Conversion.fds2ValidationResultMessage(invalidFDs, rhs, message.getLhss().length);
+		final ValidationResultMessage validationMessage = ConversionLogic.fds2ValidationResultMessage(invalidFDs, rhs, message.getLhss().length);
 		
 		return validationMessage;
 	}
@@ -90,7 +87,7 @@ public class Validation {
 						
 						final int[] record1 = this.records[recordID1];
 						final int[] record2 = this.records[recordID2];
-						if (Matching.isMatch(record1, record2, lhs) && !Matching.isMatch(record1, record2, rhs)) {
+						if (MatchingLogic.isMatch(record1, record2, lhs) && !MatchingLogic.isMatch(record1, record2, rhs)) {
 							final int[] violation = {recordID1, recordID2};
 							return violation;
 						}
@@ -118,7 +115,7 @@ public class Validation {
 					
 					// If the lhs value hash is known, test if the rhs value is the same and return a violation if not
 					final int[] rhsValueAndRecord = lhsValue2rhsValue.get(lhsValue);
-					if (!Matching.isEqual(rhsValueAndRecord[0], rhsValue)) {
+					if (!MatchingLogic.isEqual(rhsValueAndRecord[0], rhsValue)) {
 						final int[] violation = {recordID, rhsValueAndRecord[1]};
 						return violation;
 					}
@@ -127,4 +124,5 @@ public class Validation {
 		}
 		return null;
 	}
+
 }

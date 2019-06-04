@@ -13,25 +13,25 @@ import de.hpi.octopus.structures.ValidationEfficiency;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 
-public class Conversion {
+public class ConversionLogic {
 
-	public static List<FunctionalDependency> matches2FDs(final BitSet[] matches, final int numAttributes) {
+	public static List<FunctionalDependency> matches2FDs(final BitSet[] matches, final int numAttributes, boolean[] finishedRhsAttributes) {
 		List<FunctionalDependency> fds = new ArrayList<>(matches.length * numAttributes / 2);
 		for (int i = 0; i < matches.length; i++) {
 			final BitSet lhs = matches[i];
 			for (int rhs = 0; rhs < numAttributes; rhs++)
-				if (!lhs.get(rhs))
+				if (!lhs.get(rhs) && !finishedRhsAttributes[rhs])
 					fds.add(new FunctionalDependency(lhs, rhs));
 		}
 		return fds;
 	}
 	
-	public static List<FunctionalDependency> matches2FDs(final List<BitSet> matches, final int numAttributes) {
+	public static List<FunctionalDependency> matches2FDs(final List<BitSet> matches, final int numAttributes, boolean[] finishedRhsAttributes) {
 		List<FunctionalDependency> fds = new ArrayList<>(matches.size() * numAttributes / 2);
 		for (int i = 0; i < matches.size(); i++) {
 			final BitSet lhs = matches.get(i);
 			for (int rhs = 0; rhs < numAttributes; rhs++)
-				if (!lhs.get(rhs))
+				if (!lhs.get(rhs) && !finishedRhsAttributes[rhs])
 					fds.add(new FunctionalDependency(lhs, rhs));
 		}
 		return fds;
@@ -65,11 +65,11 @@ public class Conversion {
 			
 			invalidLhss.add(currentLhss);
 			invalidRhss.add(currentRhs);
-			
-			i = j;
-			
+		
 			if (currentRhs == rhs)
 				efficiency = ValidationEfficiency.calculateEfficiency(numCandidates, currentLhss.length);
+			
+			i = j;
 		}
 		
 		return new ValidationResultMessage(

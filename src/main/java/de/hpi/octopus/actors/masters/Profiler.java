@@ -26,6 +26,7 @@ import de.hpi.octopus.actors.Storekeeper.PlisMessage;
 import de.hpi.octopus.actors.listeners.ProgressListener;
 import de.hpi.octopus.actors.listeners.ProgressListener.FinishedMessage;
 import de.hpi.octopus.actors.slaves.Validator;
+import de.hpi.octopus.actors.slaves.Validator.AttributeFinishedMessage;
 import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
 import de.hpi.octopus.actors.slaves.Validator.TerminateMessage;
 import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
@@ -101,6 +102,7 @@ public class Profiler extends AbstractMaster {
 		private int rhs;
 		private boolean updatePreference;
 		private boolean validation;
+		private boolean candidatesAvailable;
 	}
 	
 	/////////////////
@@ -187,14 +189,17 @@ public class Profiler extends AbstractMaster {
 	
 	protected void terminate() {
 		this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
-		for (ActorRef validator : this.busyValidators.keySet())
-			validator.tell(new TerminateMessage(), ActorRef.noSender());
-		for (ActorRef validator : this.idleValidators)
-			validator.tell(new TerminateMessage(), ActorRef.noSender());
-		for (ActorRef validator : this.waitingValidators)
-			validator.tell(new TerminateMessage(), ActorRef.noSender());
-		
+		this.tellAllValidators(new TerminateMessage());
 		this.log().info("Finished discovery task.");
+	}
+	
+	protected void tellAllValidators(final Object message) {
+		for (ActorRef validator : this.busyValidators.keySet())
+			validator.tell(message, ActorRef.noSender());
+		for (ActorRef validator : this.idleValidators)
+			validator.tell(message, ActorRef.noSender());
+		for (ActorRef validator : this.waitingValidators)
+			validator.tell(message, ActorRef.noSender());
 	}
 	
 	protected void handle(DiscoveryTaskMessage message) throws Exception {
@@ -337,15 +342,19 @@ public class Profiler extends AbstractMaster {
 		// The dependency steward is now one message less busy
 		this.dependencyStewardRing.decreaseBusy(message.getRhs());
 		
-		// The dependency steward may have new candidates now \\ TODO: it could tell if it has candidates
-		this.dependencyStewardRing.setCandidates(message.getRhs(), true);
+		// The dependency steward may have new candidates now
+		this.dependencyStewardRing.setCandidates(message.getRhs(), message.isCandidatesAvailable());
+		
+		// Check if the dependency steward is done and, if true, finish that dependency steward; finish the discovery if done entirely
+		if (!message.isCandidatesAvailable())
+			this.finishStewardIfDone(message.getRhs());
 		
 		// If the dependency steward updated its preference, the profiler has to update it, too
 		if (message.isUpdatePreference())
 			this.dependencyStewardRing.setValidation(message.getRhs(), message.isValidation());
 		
-		// If the dependency steward is idle now and idle validators exist, we can assign work from this idle dependency steward to one of them; because sending sampling tasks does not make this steward busy, we assign tasks until it gets idle
-		while (this.dependencyStewardRing.isIdle(message.getRhs()) && !this.idleValidators.isEmpty())
+		// If the dependency steward is idle now and idle validators exist, we can assign work from this idle dependency steward to one of them
+		if (this.dependencyStewardRing.isIdle(message.getRhs()) && !this.idleValidators.isEmpty())
 			this.assign(this.idleValidators.poll());
 	}
 	
@@ -354,11 +363,12 @@ public class Profiler extends AbstractMaster {
 		this.dependencyStewardRing.decreaseBusy(message.getRhs());
 		
 		// The dependency steward may have no more candidates now
-		if (message.getLhss().length == 0)
+		if (message.getLhss().length == 0) {
 			this.dependencyStewardRing.setCandidates(message.getRhs(), false);
 		
-		// Check if the validation requester is done and, if true, finish that dependency steward; finish the discovery if done entirely
-		this.finishStewardIfDone(message.getRhs());
+			// Check if the validation requester is done and, if true, finish that dependency steward; finish the discovery if done entirely
+			this.finishStewardIfDone(message.getRhs());
+		}
 		
 		// Get the validator that is waiting for this candidate message
 		ActorRef validator = this.waitingValidators.poll();
@@ -459,7 +469,8 @@ public class Profiler extends AbstractMaster {
 		this.dependencyStewards[stewardAttribute] = null;
 		
 		// Tell all workers that we can ignore this rhs attribute now, i.e., they do not need to send non-FDs with this rhs
-		// TODO
+		final AttributeFinishedMessage attributeFinishedMessage = new AttributeFinishedMessage(stewardAttribute);
+		this.tellAllValidators(attributeFinishedMessage);
 		
 /*		System.out.println("Done " + stewardAttribute);
 		for (int i = 0; i < this.dataset.getNumAtrributes(); i++)

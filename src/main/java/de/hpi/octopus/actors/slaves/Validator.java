@@ -11,8 +11,8 @@ import de.hpi.octopus.actors.Storekeeper.SendDataMessage;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.masters.Profiler.SamplingResultMessage;
 import de.hpi.octopus.actors.masters.Profiler.ValidationResultMessage;
-import de.hpi.octopus.logic.Sampling;
-import de.hpi.octopus.logic.Validation;
+import de.hpi.octopus.logic.SamplingLogic;
+import de.hpi.octopus.logic.ValidationLogic;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.BloomFilter;
 import lombok.AllArgsConstructor;
@@ -61,6 +61,14 @@ public class Validator extends AbstractSlave {
 		private int[][][] plis;
 		private int[][] records;
 		private BloomFilter filter;
+		private boolean[] finishedRhsAttributes;
+	}
+	
+	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	public static class AttributeFinishedMessage implements Serializable {
+		private static final long serialVersionUID = -5409993307300630128L;
+		private AttributeFinishedMessage() {}
+		private int attribute;
 	}
 
 	@Data @AllArgsConstructor
@@ -74,8 +82,10 @@ public class Validator extends AbstractSlave {
 
 	private ActorRef storekeeper;
 	
-	private Validation validationLogic;
-	private Sampling samplingLogic;
+	private boolean[] finishedRhsAttributes;
+	
+	private ValidationLogic validationLogic;
+	private SamplingLogic samplingLogic;
 	
 	private Object waitingMessage;
 	private ActorRef waitingMessageSender;
@@ -94,6 +104,7 @@ public class Validator extends AbstractSlave {
 				.match(ValidationMessage.class, message -> this.time(this::handle, message))
 				.match(SamplingMessage.class, message -> this.time(this::handle, message))
 				.match(DataMessage.class, message -> this.time(this::handle, message))
+				.match(AttributeFinishedMessage.class, message -> this.time(this::handle, message))
 				.match(TerminateMessage.class, this::handle)
 				.build()
 				.orElse(super.createReceive());
@@ -128,8 +139,9 @@ public class Validator extends AbstractSlave {
 	
 	private void handle(DataMessage message) {
 		// Store the data
-		this.validationLogic = new Validation(message.getRecords(), message.getPlis(), message.getFilter(), this.log());
-		this.samplingLogic = new Sampling(message.getRecords(), message.getPlis(), message.getFilter(), this.log());
+		this.finishedRhsAttributes = message.getFinishedRhsAttributes().clone();
+		this.validationLogic = new ValidationLogic(message.getRecords(), message.getPlis(), message.getFilter(), this.finishedRhsAttributes, this.log());
+		this.samplingLogic = new SamplingLogic(message.getRecords(), message.getPlis(), message.getFilter(), this.finishedRhsAttributes, this.log());
 		
 		// Remove waiting message and sender
 		Object waitingMessage = this.waitingMessage;
@@ -175,10 +187,12 @@ public class Validator extends AbstractSlave {
 		this.process(message, this.sender());
 	}
 	
-
 	private void process(ValidationMessage message, ActorRef sender) {
 		ValidationResultMessage validationResult = this.validationLogic.process(message);
 		this.largeMessageProxy.tell(new LargeMessage<>(validationResult, sender), this.self());
 	}
 	
+	private void handle(AttributeFinishedMessage message) {
+		this.finishedRhsAttributes[message.getAttribute()] = true;
+	}
 }

@@ -10,22 +10,24 @@ import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.BloomFilter;
 import de.hpi.octopus.structures.FunctionalDependency;
 
-public class Sampling {
+public class SamplingLogic {
 
 	private final int[][] records;
 	private final int[][][] plis;
 	private final BloomFilter filter;
+	private boolean[] finishedRhsAttributes;
 	
 	@SuppressWarnings("unused")
 	private final LoggingAdapter log;
 	
-	public Sampling(final int[][] records, final int[][][] plis, final BloomFilter filter, final LoggingAdapter log) {
+	public SamplingLogic(final int[][] records, final int[][][] plis, final BloomFilter filter, final boolean[] finishedRhsAttributes, final LoggingAdapter log) {
 		this.records = records;
 		this.plis = plis;
 		this.filter = filter;
+		this.finishedRhsAttributes = finishedRhsAttributes;
 		this.log = log;
 	}
-	
+
 	public SamplingResultMessage process(SamplingMessage message) {
 		List<BitSet> matches = new ArrayList<>();
 		
@@ -35,7 +37,7 @@ public class Sampling {
 		for (int[] cluster : this.plis[message.getAttribute()]) {
 			for (int index = 0; index < cluster.length - message.getDistance(); index++) {
 				for (int attribute = 0; attribute < this.plis.length; attribute++)
-					if (Matching.isMatch(this.records[cluster[index]], this.records[cluster[index + message.getDistance()]], attribute))
+					if (MatchingLogic.isMatch(this.records[cluster[index]], this.records[cluster[index + message.getDistance()]], attribute))
 						match.set(attribute);
 				numComparisons++;
 				
@@ -48,13 +50,13 @@ public class Sampling {
 		// Convert matches into invalid FDs
 //		matches = this.filterSmallMatches(matches);
 		matches = this.pruneSubsets(matches);
-		final List<FunctionalDependency> invalidFDs = Conversion.matches2FDs(matches, this.plis.length);
+		final List<FunctionalDependency> invalidFDs = ConversionLogic.matches2FDs(matches, this.plis.length, this.finishedRhsAttributes);
 		
 		int numMatches = matches.size();
 		matches = null;
 		
 		// Send the result to the sender of the sampling message
-		final SamplingResultMessage samplingResult = Conversion.fds2SamplingResultMessage(invalidFDs, numComparisons, numMatches);
+		final SamplingResultMessage samplingResult = ConversionLogic.fds2SamplingResultMessage(invalidFDs, numComparisons, numMatches);
 		
 		return samplingResult;
 	}
@@ -83,7 +85,7 @@ public class Sampling {
 //		this.log.info("{} -> {}     {}", matches.size(), prunedMatches.size(), matches.size() - prunedMatches.size());
 		return prunedMatches;
 	}
-	
+
 	/////// Experimental Stuff /////////////
 /*	
 	private float averageMatchSize = 0;

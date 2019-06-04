@@ -18,5 +18,8 @@ public interface FDStore {
 	
 	public BitSet[] announceLhss(int amount);
 	
+	public boolean hasUnannounceLhss();
+
 	public void trimTree(int toDepth);
+
 }

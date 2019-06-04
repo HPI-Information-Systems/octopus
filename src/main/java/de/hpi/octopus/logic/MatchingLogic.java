@@ -1,6 +1,6 @@
 package de.hpi.octopus.logic;
 
-public class Matching {
+public class MatchingLogic {
 
 	public static boolean isMatch(final int[] record1, final int[] record2, final int[] attributes) {
 		for (int i = 0; i < attributes.length; i++)
@@ -16,5 +16,4 @@ public class Matching {
 	public static boolean isEqual(final int value1, final int value2) {
 		return (value1 == value2) && (value1 != -1);
 	}
-	
 }

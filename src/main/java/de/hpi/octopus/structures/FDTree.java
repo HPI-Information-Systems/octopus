@@ -182,6 +182,11 @@ public class FDTree extends FDTreeElement implements FDStore {
 		
 		return lhss;
 	}
+
+	@Override
+	public boolean hasUnannounceLhss() {
+		return this.first != null;
+	}
 	
 	@Override
 	public void trimTree(int toDepth) {
