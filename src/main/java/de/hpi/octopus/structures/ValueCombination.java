@@ -10,11 +10,15 @@ public class ValueCombination {
 	private final int[] record;
 	private final int[] attributes;
 	
-	public boolean isUnique() {
-		for (int i = 0; i < this.attributes.length; i++)
-			if (this.record[this.attributes[i]] == -1)
+	public static boolean isUnique(final int[] record, final int[] attributes) {
+		for (int i = 0; i < attributes.length; i++)
+			if (record[attributes[i]] == -1)
 				return true;
 		return false;
+	}
+	
+	public boolean isUnique() {
+		return ValueCombination.isUnique(this.record, this.attributes);
 	}
 
 	@Override

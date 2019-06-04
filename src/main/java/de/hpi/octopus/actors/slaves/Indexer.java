@@ -165,7 +165,8 @@ public class Indexer extends AbstractSlave {
 		
 		int inputLength = this.attribute2offset.remove(attribute);
 		
-		this.sender().tell(new IndexingResultMessage(attribute, pli, inputLength, message.getWatermark()), this.self());
+		IndexingResultMessage indexingResult = new IndexingResultMessage(attribute, pli, inputLength, message.getWatermark());
+		this.largeMessageProxy.tell(new LargeMessage<>(indexingResult, this.sender()), this.self());
 	}
 	
 	private void handle(SendAttributesMessage message) {

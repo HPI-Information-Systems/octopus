@@ -260,8 +260,9 @@ public class Profiler extends AbstractMaster {
 		if (this.children == 0)
 			this.terminate();
 		
-		// Assign initial work to all validators
-		while (!this.idleValidators.isEmpty())
+		// Assign initial work to all validators (if possible); because this.assign adds validators back to the idle list if no work is present, we poll each validator only once.
+		int numValidators = this.idleValidators.size();
+		for (int i = 0; i < numValidators; i++)
 			this.assign(this.idleValidators.poll());
 	}
 

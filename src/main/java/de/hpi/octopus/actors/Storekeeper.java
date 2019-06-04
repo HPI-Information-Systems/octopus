@@ -16,7 +16,7 @@ import akka.cluster.MemberStatus;
 import de.hpi.octopus.OctopusMaster;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.masters.Profiler.SendPlisMessage;
-import de.hpi.octopus.actors.slaves.Validator.FilterMessage;
+import de.hpi.octopus.actors.slaves.Validator.DataMessage;
 import de.hpi.octopus.structures.BloomFilter;
 import de.hpi.octopus.structures.Dataset;
 import lombok.AllArgsConstructor;
@@ -39,11 +39,6 @@ public class Storekeeper extends AbstractLoggingActor {
 	////////////////////
 
 	@Data @AllArgsConstructor
-	public static class SendFilterMessage implements Serializable {
-		private static final long serialVersionUID = -913974193674345240L;
-	}
-
-	@Data @AllArgsConstructor
 	public static class SendDataMessage implements Serializable {
 		private static final long serialVersionUID = 543626437035529604L;
 	}
@@ -62,6 +57,7 @@ public class Storekeeper extends AbstractLoggingActor {
 
 	private final Cluster cluster = Cluster.get(this.context().system());
 
+	@SuppressWarnings("unused") // Needed to receive large messages
 	private final ActorRef largeMessageProxy = this.context().actorOf(LargeMessageProxy.props(), LargeMessageProxy.DEFAULT_NAME);
 	
 	private ActorSelection profiler;
@@ -98,7 +94,6 @@ public class Storekeeper extends AbstractLoggingActor {
 		return receiveBuilder()
 				.match(CurrentClusterState.class, this::handle)
 				.match(MemberUp.class, this::handle)
-				.match(SendFilterMessage.class, this::handle)
 				.match(SendDataMessage.class, this::handle)
 				.match(PlisMessage.class, this::handle)
 				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
@@ -121,24 +116,17 @@ public class Storekeeper extends AbstractLoggingActor {
 			this.profiler = this.getContext().actorSelection(member.address() + "/user/" + Profiler.DEFAULT_NAME);
 	}
 	
-	private void handle(SendFilterMessage message) {
-		if (this.filter == null)
-			this.filter = new BloomFilter();
-		
-		this.sender().tell(new FilterMessage(this.filter), this.self());
-	}
-	
 	private void handle(SendDataMessage message) {
 		// If the data is already present, send the data
 		if (this.dataset != null) {
-			this.sender().tell(this.dataset.toDataMessage(), this.self());
+			final DataMessage dataMessage = new DataMessage(this.dataset.getPlis(), this.dataset.getRecords(), this.filter);
+			this.sender().tell(dataMessage, this.self());
 			return;
 		}
 		
 		// If the data has not yet been requested, send data request
-		if (this.waitingValidators.isEmpty()) {
+		if (this.waitingValidators.isEmpty())
 			this.profiler.tell(new SendPlisMessage(), this.self());
-		}
 		
 		// Put the sender of the current request to the waiting list
 		this.waitingValidators.add(this.sender());
@@ -148,9 +136,15 @@ public class Storekeeper extends AbstractLoggingActor {
 		// Store plis; this also generates and stores the pli-records
 		this.dataset = new Dataset(message, this.log());
 		
+		// Create a filter for this dataset
+		this.filter = new BloomFilter();
+		
+		// Create the data message
+		final DataMessage dataMessage = new DataMessage(this.dataset.getPlis(), this.dataset.getRecords(), this.filter);
+		
 		// Send the plis and pli-records to all validators waiting for it
 		for (ActorRef validator : this.waitingValidators)
-			validator.tell(this.dataset.toDataMessage(), this.self());
+			validator.tell(dataMessage, this.self());
 		this.waitingValidators.clear();
 		
 		// Write dataset to disk for debugging

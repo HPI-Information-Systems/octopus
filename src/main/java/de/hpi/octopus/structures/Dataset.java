@@ -14,7 +14,6 @@ import java.util.Comparator;
 import akka.event.LoggingAdapter;
 import de.hpi.octopus.actors.Storekeeper.PlisMessage;
 import de.hpi.octopus.actors.masters.Profiler.DiscoveryTaskMessage;
-import de.hpi.octopus.actors.slaves.Validator.DataMessage;
 import de.metanome.algorithm_integration.ColumnIdentifier;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import lombok.AllArgsConstructor;
@@ -192,10 +191,6 @@ public class Dataset {
 	
 	public PlisMessage toPlisMessage() {
 		return new PlisMessage(this.plis, this.numRecords);
-	}
-	
-	public DataMessage toDataMessage() {
-		return new DataMessage(this.plis, this.records);
 	}
 	
 	public void writeToDisk(String fileName) {
