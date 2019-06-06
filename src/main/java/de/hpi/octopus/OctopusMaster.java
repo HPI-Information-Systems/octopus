@@ -17,11 +17,8 @@ import de.hpi.octopus.actors.masters.Preprocessor.PreprocessingTaskMessage;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.slaves.Indexer;
 import de.hpi.octopus.actors.slaves.Validator;
-import de.hpi.octopus.testing.TestActor;
-import de.metanome.algorithm_integration.configuration.ConfigurationSettingFileInput;
-import de.metanome.algorithm_integration.input.RelationalInputGenerator;
-import de.metanome.algorithm_integration.result_receiver.FunctionalDependencyResultReceiver;
-import de.metanome.backend.input.file.DefaultFileInputGenerator;
+import de.hpi.octopus.configuration.Configuration;
+import de.hpi.octopus.configuration.ConfigurationSingleton;
 import scala.concurrent.Await;
 import scala.concurrent.duration.Duration;
 
@@ -29,11 +26,10 @@ public class OctopusMaster extends OctopusSystem {
 	
 	public static final String MASTER_ROLE = "master";
 
-	public static void start(String actorSystemName, int workers, String host, int port, RelationalInputGenerator relationalInputGenerator, FunctionalDependencyResultReceiver resultReceiver, boolean startPaused) {
-
-		final Config config = createConfiguration(actorSystemName, MASTER_ROLE, host, port, host, port);
-		
-		final ActorSystem system = createSystem(actorSystemName, config);
+	public static void start() {
+		final Configuration c = ConfigurationSingleton.get();
+		final Config config = createConfiguration(c.getActorSystemName(), MASTER_ROLE, c.getHost(), c.getPort(), c.getMasterHost(), c.getMasterPort());
+		final ActorSystem system = createSystem(c.getActorSystemName(), config);
 		
 		Cluster.get(system).registerOnMemberUp(new Runnable() {
 			@Override
@@ -42,19 +38,19 @@ public class OctopusMaster extends OctopusSystem {
 				
 			//	ActorRef clusterListener = system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
 			//	ActorRef metricsListener = system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
-				ActorRef progressListener = system.actorOf(ProgressListener.props(resultReceiver), ProgressListener.DEFAULT_NAME);
+				ActorRef progressListener = system.actorOf(ProgressListener.props(), ProgressListener.DEFAULT_NAME);
 				
 				ActorRef preprocessor = system.actorOf(Preprocessor.props(), Preprocessor.DEFAULT_NAME);
 
-				for (int i = 0; i < workers; i++)
+				for (int i = 0; i < c.getNumWorkers(); i++)
 					system.actorOf(Indexer.props(), Indexer.DEFAULT_NAME + i);
 
 				ActorRef profiler = system.actorOf(Profiler.props(), Profiler.DEFAULT_NAME);
 				
-				if (workers > 0) {
+				if (c.getNumWorkers() > 0) {
 					ActorRef storekeeper = system.actorOf(Storekeeper.props(), Storekeeper.DEFAULT_NAME);
 				
-					for (int i = 0; i < workers; i++)
+					for (int i = 0; i < c.getNumWorkers(); i++)
 						system.actorOf(Validator.props(storekeeper), Validator.DEFAULT_NAME + i);
 				}
 				
@@ -68,21 +64,18 @@ public class OctopusMaster extends OctopusSystem {
 			//	ActorRef testActor2 = system.actorOf(TestActor.props(testActor1), TestActor.DEFAULT_NAME + 2);
 			//	testActor2.tell("Hello", ActorRef.noSender());
 				
-				if (!startPaused) {
-					int bufferSize = 100; // TODO: make parameter
-					system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new PreprocessingTaskMessage(relationalInputGenerator, bufferSize), ActorRef.noSender());
-				}
+				if (!c.isStartPaused())
+					system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new PreprocessingTaskMessage(), ActorRef.noSender());
 			}
 		});
 		
-		if (startPaused) {
+		if (c.isStartPaused()) {
 			try (final Scanner scanner = new Scanner(System.in)) {
 				String line = scanner.nextLine();
 				System.out.println(line);
 			}
 			
-			int bufferSize = 100; // TODO: make parameter
-			system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new PreprocessingTaskMessage(relationalInputGenerator, bufferSize), ActorRef.noSender());
+			system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new PreprocessingTaskMessage(), ActorRef.noSender());
 		}
 		
 		while (true) {

@@ -44,6 +44,7 @@ public class Indexer extends AbstractSlave {
 		private IndexingMessage() {}
 		private int attribute;
 		private String[] values;
+		private boolean nullEqualsNull;
 		private int watermark;
 	}
 
@@ -132,20 +133,43 @@ public class Indexer extends AbstractSlave {
 		int row = this.attribute2offset.get(attribute);
 		Map<String, IntArrayList> index = this.attribute2value2positions.get(attribute);
 		
+		if (message.isNullEqualsNull())
+			row = this.addWithNullEquals(index, values, row); // Used by most FD discovery algorithms
+		else
+			row = this.addWithNullUnequals(index, values, row); // Used usually for experiments
+		
+		this.attribute2offset.put(attribute, row);
+		
+		this.sender().tell(new IndexingDoneMessage(message.getWatermark()), this.self());
+	}
+	
+	private int addWithNullEquals(Map<String, IntArrayList> index, String[] values, int row) {
+		// To implement the null = null semantic, we simply use the null values in a map, because they are all the same value
 		for (String value : values) {
-			// Simply using null values in a map implements the null = null semantic, which is used by most FD discovery algorithms; TODO: make the null semantics a parameter and implement both semantics here
+			if (!index.containsKey(value))
+				index.put(value, new IntArrayList());
+			
+			index.get(value).add(row);
+			row++;
+		}
+		return row;
+	}
+
+	private int addWithNullUnequals(Map<String, IntArrayList> index, String[] values, int row) {
+		// To implement the null != null semantic, we need to remove nulls from the plis, because they are unique values
+		for (String value : values) {
+			if (value == null)
+				continue;
 			
 			if (!index.containsKey(value))
 				index.put(value, new IntArrayList());
 			
 			index.get(value).add(row);
 			row++;
-		}		
-		this.attribute2offset.put(attribute, row);
-		
-		this.sender().tell(new IndexingDoneMessage(message.getWatermark()), this.self());
+		}
+		return row;
 	}
-	
+
 	private void handle(FinalizeMessage message) throws IOException {
 		int attribute = message.getAttribute();
 		Map<String, IntArrayList> index = this.attribute2value2positions.remove(attribute);

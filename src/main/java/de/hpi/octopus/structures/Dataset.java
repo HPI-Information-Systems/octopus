@@ -14,6 +14,7 @@ import java.util.Comparator;
 import akka.event.LoggingAdapter;
 import de.hpi.octopus.actors.Storekeeper.PlisMessage;
 import de.hpi.octopus.actors.masters.Profiler.DiscoveryTaskMessage;
+import de.hpi.octopus.logic.ConversionLogic;
 import de.metanome.algorithm_integration.ColumnIdentifier;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import lombok.AllArgsConstructor;
@@ -40,7 +41,7 @@ public class Dataset {
 		
 		// Debug output
 //		for (int[][] pli : plis)
-//			log.info(Utils.pliToString(pli));
+//			log.info(ConversionLogic.pli2String(pli));
 //		log.info("-------mm---------");
 		
 		int numAttributes = plis.length;
@@ -82,7 +83,7 @@ public class Dataset {
 		
 		// Debug output
 //		for (int[][] pli : this.plis)
-//			log.info(Utils.pliToString(pli));
+//			log.info(ConversionLogic.pli2String(pli));
 //		log.info("-------II---------");
 	}
 	
@@ -95,7 +96,7 @@ public class Dataset {
 		
 		// Debug output
 //		for (int[][] pli : this.plis)
-//			log.info(Utils.pliToString(pli));
+//			log.info(ConversionLogic.pli2String(pli));
 //		log.info("-------oo---------");
 		
 		// Generate and store pli-records
@@ -115,7 +116,7 @@ public class Dataset {
 		
 		// Debug output
 //		for (int i = 0; i < 1000; i++) {
-//			log.info(Utils.recordToString(this.records[i]));
+//			log.info(ConversionLogic.record2String(this.records[i]));
 //		}
 //		log.info("-------88---------");
 		
@@ -184,7 +185,7 @@ public class Dataset {
 		
 		// Debug output
 //		for (int i = 0; i < 50; i++) {
-//			log.info(Utils.recordToString(this.records[i]));
+//			log.info(ConversionLogic.record2String(this.records[i]));
 //		}
 //		log.info("-------VV---------");
 	}

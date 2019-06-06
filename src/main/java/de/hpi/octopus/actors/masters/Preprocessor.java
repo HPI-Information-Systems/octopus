@@ -19,7 +19,9 @@ import de.hpi.octopus.actors.masters.Profiler.DiscoveryTaskMessage;
 import de.hpi.octopus.actors.slaves.Indexer.FinalizeMessage;
 import de.hpi.octopus.actors.slaves.Indexer.IndexingMessage;
 import de.hpi.octopus.actors.slaves.Indexer.SendAttributesMessage;
-import de.metanome.algorithm_integration.input.RelationalInputGenerator;
+import de.hpi.octopus.configuration.ConfigurationSingleton;
+import de.hpi.octopus.configuration.DatasetDescriptorSingleton;
+import de.hpi.octopus.io.RelationalInputGeneratorSingleton;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap.Entry;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
@@ -42,12 +44,9 @@ public class Preprocessor extends AbstractMaster {
 	// Actor Messages //
 	////////////////////
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @AllArgsConstructor
 	public static class PreprocessingTaskMessage implements Serializable {
 		private static final long serialVersionUID = -4788853430111845038L;
-		private PreprocessingTaskMessage() {}
-		private RelationalInputGenerator input;
-		private int bufferSize;
 	}
 	
 	@Data @AllArgsConstructor @SuppressWarnings("unused")
@@ -97,6 +96,7 @@ public class Preprocessor extends AbstractMaster {
 	private int watermark = 0; // If the preprocessing needs to be restarted, the watermark is used to identify old messages that need to be dropped
 	
 	private ActorRef datasetReader;
+	private boolean nullEqualsNull;
 	
 	private List<List<String>> waitingBatch = null;
 	private List<ActorRef> idleIndexers = new ArrayList<ActorRef>();
@@ -167,13 +167,15 @@ public class Preprocessor extends AbstractMaster {
 	
 	private void handle(PreprocessingTaskMessage message) throws Exception {
 		if (this.datasetReader != null) {
-			this.log().error("Can process only one task! Dropping preprocessing request for " + message.getInput());
+			this.log().error("Can process only one task! Dropping preprocessing request for " + DatasetDescriptorSingleton.get().getDatasetPathNameEnding());
 			return;
 		}
 		
+		this.nullEqualsNull = ConfigurationSingleton.get().isNullEqualsNull();
+		
 		this.context().actorSelection("/user/" + ProgressListener.DEFAULT_NAME).tell(new ProgressListener.StartMessage(), ActorRef.noSender());
 		
-		this.datasetReader = this.context().actorOf(DatasetReader.props(message.getInput(), message.getBufferSize()), DatasetReader.DEFAULT_NAME);
+		this.datasetReader = this.context().actorOf(DatasetReader.props(RelationalInputGeneratorSingleton.get(), ConfigurationSingleton.get().getBufferSize()), DatasetReader.DEFAULT_NAME);
 
 		this.datasetReader.tell(new ReadMessage(this.watermark), this.self());
 	}
@@ -234,7 +236,7 @@ public class Preprocessor extends AbstractMaster {
 			final String[] values = new String[batch.size()];
 			for (int i = 0; i < batch.size(); i++)
 				values[i] = batch.get(i).get(attribute);
-			this.attribute2indexer.get(attribute).tell(new IndexingMessage(attribute, values, this.watermark), this.self());
+			this.attribute2indexer.get(attribute).tell(new IndexingMessage(attribute, values, this.nullEqualsNull, this.watermark), this.self());
 		}
 		this.pendingResponses = this.attribute2indexer.size();
 	}

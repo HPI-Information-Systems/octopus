@@ -30,6 +30,7 @@ import de.hpi.octopus.actors.slaves.Validator.AttributeFinishedMessage;
 import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
 import de.hpi.octopus.actors.slaves.Validator.TerminateMessage;
 import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
+import de.hpi.octopus.configuration.ConfigurationSingleton;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.DependencyStewardRing;
@@ -250,8 +251,8 @@ public class Profiler extends AbstractMaster {
 			
 			// Create the dependency steward
 			this.dependencyStewards[i] = this.context().actorOf(
-					DependencySteward.props(i, numAttributes, -1), 
-					DependencySteward.DEFAULT_NAME + i); // TODO: the maxDepth i.e. max FD size should be a parameter
+					DependencySteward.props(i, numAttributes, ConfigurationSingleton.get().getMaxLhsSize()), 
+					DependencySteward.DEFAULT_NAME + i);
 			this.context().watch(this.dependencyStewards[i]);
 			this.children++;
 			
@@ -353,9 +354,9 @@ public class Profiler extends AbstractMaster {
 		if (message.isUpdatePreference())
 			this.dependencyStewardRing.setValidation(message.getRhs(), message.isValidation());
 		
-		// If the dependency steward is idle now and idle validators exist, we can assign work from this idle dependency steward to one of them
-		if (this.dependencyStewardRing.isIdle(message.getRhs()) && !this.idleValidators.isEmpty())
-			this.assign(this.idleValidators.poll());
+		// If the dependency steward is idle now, we can assign work from this idle dependency steward to idle validators; because sending sampling tasks does not make this steward busy, we assign tasks until no more tasks could be assigned
+		if (this.dependencyStewardRing.isIdle(message.getRhs()))
+			this.assignIdleValidators();
 	}
 	
 	private void handle(CandidateMessage message) {
@@ -393,16 +394,21 @@ public class Profiler extends AbstractMaster {
 			validator.tell(validationMessage, this.self());
 		}
 		
-		// If the dependency steward is idle now and idle validators exist, we can assign work from this idle dependency steward to one of them; because sending sampling tasks does not make this steward busy, we assign tasks until it gets idle
-		while (this.dependencyStewardRing.isIdle(message.getRhs()) && !this.idleValidators.isEmpty())
-			this.assign(this.idleValidators.poll());
+		// If the dependency steward is idle now, we can assign work from this idle dependency steward to idle validators; because sending sampling tasks does not make this steward busy, we assign tasks until no more tasks could be assigned
+		if (this.dependencyStewardRing.isIdle(message.getRhs()))
+			this.assignIdleValidators();
+	}
+
+	private void assignIdleValidators() {
+		// Assign idle validators until there are either no more idle validators or we could not assign any further work
+		while (!this.idleValidators.isEmpty() && this.assign(this.idleValidators.poll())) {}
 	}
 	
-	private void assign(ActorRef validator) {
+	private boolean assign(ActorRef validator) {
 		// Let the validator idle if no discovery task is present yet
 		if (this.dataset == null) {
 			this.idleValidators.add(validator);
-			return;
+			return false;
 		}
 		
 		// Assign work that is waiting for a worker
@@ -410,7 +416,7 @@ public class Profiler extends AbstractMaster {
 		if (work != null) {
 			validator.tell(work, this.self());
 			this.busyValidators.put(validator, work);
-			return;
+			return true;
 		}
 		
 		// Assign sampling tasks for attributes that have not yet been used for sampling
@@ -422,7 +428,7 @@ public class Profiler extends AbstractMaster {
 			SamplingMessage samplingMessage = new SamplingMessage(samplingEfficiency.getAttribute(), distance);
 			validator.tell(samplingMessage, this.self());
 			this.busyValidators.put(validator, samplingMessage);
-			return;
+			return true;
 		}
 		
 		// Try to assign a validation task
@@ -432,26 +438,35 @@ public class Profiler extends AbstractMaster {
 			this.dependencyStewards[attribute].tell(new CandidateRequestMessage(), this.self());
 			
 			this.waitingValidators.add(validator);
-			return;
+			return true;
 		}
 		
 		// Try to assign a sampling task
-		attribute = this.dependencyStewardRing.nextIdleWithSamplingPreference(); // TODO: If this attribute has a sampling preference, then we should not use this attribute for sampling, because we want to find contradictions that have differing values for this attribute; maybe we can inverse the sampling: use record pairs that have DIFFERING clusters for this attribute?
+		attribute = this.dependencyStewardRing.nextIdleWithSamplingPreference();
 		if (attribute >= 0) {
 			SamplingEfficiency samplingEfficiency = this.prioritizedSamplingEfficiencies.poll();
+			
+			// Do not sample on the same attribute that has asked for the sampling, because the sampling would not find any violation for that rhs attribute (all values in that attribute would be the same during sampling; hence, no violation possible for that rhs)
+			if (attribute == samplingEfficiency.getAttribute()) {
+				SamplingEfficiency uselessSamplingEfficiency = samplingEfficiency;   // The selected attribute is the most efficient attribute but it is useless for serving this request
+				samplingEfficiency = this.prioritizedSamplingEfficiencies.poll();    // The next most efficient sampling attribute is what is needed
+				this.prioritizedSamplingEfficiencies.add(uselessSamplingEfficiency); // The useless attribute can be added back to the top of the priority queue
+			}
+			
 			int distance = samplingEfficiency.step();
 			this.prioritizedSamplingEfficiencies.add(samplingEfficiency);
 			
-			this.dependencyStewardRing.setValidation(attribute, true); // We fulfilled the sampling wish and set the preference to validation; otherwise we would sample forever, if the sampling does not discover any further nonFDs (which were needed to change the preference)
+			this.dependencyStewardRing.setValidation(attribute, true); // We fulfilled the sampling wish and set the preference to validation; otherwise we would sample forever, if the sampling does not discover any further nonFDs (which were needed to change the preference back to validation)
 			
 			SamplingMessage samplingMessage = new SamplingMessage(samplingEfficiency.getAttribute(), distance);
 			validator.tell(samplingMessage, this.self());
 			this.busyValidators.put(validator, samplingMessage);
-			return;
+			return true;
 		}
 		
 		// Let the validator idle if all dependency stewards are busy (i.e., we apply backpressure to not exhaust the profiler and its dependency stewards)
 		this.idleValidators.add(validator);
+		return false;
 	}
 
 	private boolean finishStewardIfDone(int stewardAttribute) {

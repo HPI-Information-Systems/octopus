@@ -8,6 +8,7 @@ import akka.actor.ActorRef;
 import akka.actor.PoisonPill;
 import akka.actor.Props;
 import de.hpi.octopus.actors.Reaper;
+import de.hpi.octopus.io.FunctionalDependencyResultReceiverSingleton;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.Dataset;
 import de.metanome.algorithm_integration.ColumnCombination;
@@ -25,12 +26,8 @@ public class ProgressListener extends AbstractLoggingActor {
 
 	public static final String DEFAULT_NAME = "progressListener";
 
-	public static Props props(FunctionalDependencyResultReceiver resultReceiver) {
-		return Props.create(ProgressListener.class, () -> new ProgressListener(resultReceiver));
-	}
-	
-	public ProgressListener(FunctionalDependencyResultReceiver resultReceiver) {
-		this.resultReceiver = resultReceiver;
+	public static Props props() {
+		return Props.create(ProgressListener.class);
 	}
 	
 	////////////////////
@@ -65,7 +62,6 @@ public class ProgressListener extends AbstractLoggingActor {
 	private long startTime;
 	private int numFDs;
 	private int activeStewards;
-	private FunctionalDependencyResultReceiver resultReceiver;
 	
 	/////////////////////
 	// Actor Lifecycle //
@@ -108,7 +104,8 @@ public class ProgressListener extends AbstractLoggingActor {
 			this.numFDs = this.numFDs + message.getLhss().length;
 		
 			// Report the discovered FDs to the result receiver
-			if (this.resultReceiver != null) { // TODO: at the moment, octopus writes the results to disk (dependencySteward and profiler) and it reports them to the Metanome interface, which writes them again; results should be written only once
+			FunctionalDependencyResultReceiver resultReceiver = FunctionalDependencyResultReceiverSingleton.get();
+			if (resultReceiver != null) { // TODO: at the moment, octopus writes the results to disk (dependencySteward and profiler) and it reports them to the Metanome interface, which writes them again; results should be written only once
 				ColumnIdentifier[] columnIndentifiers = message.getDataset().getColumnIdentifiers();
 				
 				ColumnIdentifier rhs = columnIndentifiers[message.getRhs()];
@@ -117,7 +114,7 @@ public class ProgressListener extends AbstractLoggingActor {
 					for (int i = lhsAttributes.nextSetBit(0); i >= 0; i = lhsAttributes.nextSetBit(i + 1))
 						lhs.add(columnIndentifiers[i]);
 					
-					this.resultReceiver.acceptedResult(new FunctionalDependency(new ColumnCombination(lhs.toArray(new ColumnIdentifier[0])), rhs));
+					resultReceiver.acceptedResult(new FunctionalDependency(new ColumnCombination(lhs.toArray(new ColumnIdentifier[0])), rhs));
 				}
 			}
 		}

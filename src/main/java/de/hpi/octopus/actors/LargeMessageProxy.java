@@ -11,6 +11,7 @@ import akka.actor.AbstractLoggingActor;
 import akka.actor.ActorRef;
 import akka.actor.ActorSelection;
 import akka.actor.Props;
+import de.hpi.octopus.configuration.ConfigurationSingleton;
 import de.hpi.octopus.structures.KryoPoolSingleton;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
@@ -25,8 +26,6 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 
 	public static final String DEFAULT_NAME = "largeMessageProxy";
 	
-	public static final int MAX_MESSAGE_SIZE = 100; // TODO: Make parameter/configurable
-
 	public static Props props() {
 		return Props.create(LargeMessageProxy.class);
 	}
@@ -90,6 +89,8 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 	
 	private Map<String, SendState> largeMessagesBeingSend = new HashMap<String, SendState>();
 	private Map<String, ReceiveState> largeMessagesBeingReceived = new HashMap<String, ReceiveState>();
+	
+	private final int maxMessageSize = ConfigurationSingleton.get().getMaxMessageSize();
 	
 	@Data @AllArgsConstructor
 	private class SendState {
@@ -190,11 +191,11 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 		int offset = state.getOffset();
 		
 		// Get next chunk
-		byte[] chunk = Arrays.copyOfRange(bytes, offset, Math.min(offset + MAX_MESSAGE_SIZE, bytes.length));
-		state.setOffset(offset + MAX_MESSAGE_SIZE);
+		byte[] chunk = Arrays.copyOfRange(bytes, offset, Math.min(offset + this.maxMessageSize, bytes.length));
+		state.setOffset(offset + this.maxMessageSize);
 		
 		// Delete the large message from the map of tracked messages, if this is the last chunk
-		if (chunk.length < MAX_MESSAGE_SIZE)
+		if (chunk.length < this.maxMessageSize)
 			this.largeMessagesBeingSend.remove(transferKey);
 		
 		// Return the chunk wrapped in a BytesMessage
@@ -216,7 +217,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 		byte[] chunk = message.getBytes();
 		
 		// Store the chunk, if it is not complete
-		if (chunk.length == MAX_MESSAGE_SIZE) {
+		if (chunk.length == this.maxMessageSize) {
 			this.largeMessagesBeingReceived.get(transferKey).getBytes().add(chunk);
 			
 			this.sender().tell(new AckBytesMessage(transferKey), this.self());
@@ -226,7 +227,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 		// Re-assemble the byte chunks into one array
 		ReceiveState state = this.largeMessagesBeingReceived.remove(transferKey);
 		List<byte[]> chunks = state.getBytes();
-		byte[] bytes = new byte[chunks.size() * MAX_MESSAGE_SIZE + chunk.length];
+		byte[] bytes = new byte[chunks.size() * this.maxMessageSize + chunk.length];
 		int i = 0;
 		for (byte[] c : chunks) {
 			for (int j = 0; j < c.length; j++) {
