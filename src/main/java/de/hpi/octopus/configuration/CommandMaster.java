@@ -29,7 +29,10 @@ public class CommandMaster extends Command {
 	boolean startPaused = ConfigurationSingleton.get().isStartPaused();
 
 	@Parameter(names = { "-bs", "--bufferSize" }, required = false)
-	public int bufferSize = ConfigurationSingleton.get().getBufferSize();
+	int bufferSize = ConfigurationSingleton.get().getBufferSize();
+
+	@Parameter(names = { "-vt", "--validationThreshold" }, required = false)
+	double validationThreshold = ConfigurationSingleton.get().getValidationThreshold();
 	
 	// DatasetDescriptor
 	

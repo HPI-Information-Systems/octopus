@@ -16,6 +16,7 @@ import akka.actor.Props;
 import de.hpi.octopus.actors.listeners.ProgressListener;
 import de.hpi.octopus.actors.masters.Profiler.CandidateMessage;
 import de.hpi.octopus.actors.masters.Profiler.FDsUpdatedMessage;
+import de.hpi.octopus.configuration.ConfigurationSingleton;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.FDStore;
@@ -34,15 +35,16 @@ public class DependencySteward extends AbstractLoggingActor {
 
 	public static final int MAX_CANDIDATES_PER_REQUEST = 50;
 	
-	public static Props props(int rhs, int numAttributes, int maxDepth) {
-		return Props.create(DependencySteward.class, () -> new DependencySteward(rhs, numAttributes, maxDepth));
+	public static Props props(int rhs, int numAttributes) {
+		return Props.create(DependencySteward.class, () -> new DependencySteward(rhs, numAttributes));
 	}
 
-	public DependencySteward(int rhs, int numAttributes, int maxDepth) {
+	public DependencySteward(final int rhs, final int numAttributes) {
 		this.rhs = rhs;
 		this.fds = new FDTree(numAttributes, rhs);
 		
-		this.maxDepth = maxDepth;
+		this.maxDepth = ConfigurationSingleton.get().getMaxLhsSize();
+		this.validationThreshold = ConfigurationSingleton.get().getValidationThreshold();
 	}
 
 	////////////////////
@@ -54,8 +56,7 @@ public class DependencySteward extends AbstractLoggingActor {
 		private static final long serialVersionUID = -102767440935270949L;
 		private InvalidFDsMessage() {}
 		private BitSet[] invalidLhss;
-		private boolean validation;
-		private int rhs; // The rhs of the dependency steward that requested the validation/sampling that led to this result message
+		private int rhs; // The rhs of the dependency steward that requested the validation that led to this result message; -1 for sampling results, because sampling is for everyone
 		private double efficiency;
 	}
 	
@@ -79,13 +80,7 @@ public class DependencySteward extends AbstractLoggingActor {
 	
 	private int maxDepth;
 	
-	private double validationCalculationEfficiency = 0;
-	private double validationUpdateEfficiency = 0;
-	private double samplingCalculationEfficiency = 0;
-	private double samplingUpdateEfficiency = 0;
-	
-	private double validationThreshold = 0.8;
-	private double samplingThreshold = 0.01;
+	private double validationThreshold;
 	
 	/////////////////////
 	// Actor Lifecycle //
@@ -112,7 +107,7 @@ public class DependencySteward extends AbstractLoggingActor {
 	}
 
 	private <T> void time(Consumer<T> handle, T message, int size) {
-		long t = System.currentTimeMillis();
+//		long t = System.currentTimeMillis();
 		handle.accept(message);
 //		this.log().info("Processed {} in {} ms given a message size of {}.", message.getClass().getSimpleName(), System.currentTimeMillis() - t, size);
 	}
@@ -123,14 +118,12 @@ public class DependencySteward extends AbstractLoggingActor {
 	}
 	
 	protected void handle(InvalidFDsMessage message) {
-		int numAttributes = this.fds.getNumAttributes();
-		int numUpdates = 0;
+		final int numAttributes = this.fds.getNumAttributes();
 		
 		// Prune the candidates from the FDTree and infer new candidates
 		for (BitSet invalidLhs : message.getInvalidLhss()) {
 			for (BitSet specLhs : this.fds.getLhsAndGeneralizations(invalidLhs)) {
 				this.fds.removeLhs(specLhs);
-				numUpdates++;
 				
 				if ((this.maxDepth > 0) && (specLhs.cardinality() >= this.maxDepth))
 					continue;
@@ -152,40 +145,16 @@ public class DependencySteward extends AbstractLoggingActor {
 			}
 		}
 		
-		// Update efficiencies and preference if the message is a response to your own request
-		if (message.getRhs() == this.rhs) {
-			if (message.isValidation()) { // TODO: Nochmal überdenken wie die Effizienz bewertet wird...
-				this.validationCalculationEfficiency = message.getEfficiency();
-				this.validationUpdateEfficiency = (double) numUpdates / (double) message.getInvalidLhss().length;
-			}
-			else {
-				this.samplingCalculationEfficiency = message.getEfficiency();
-				this.samplingUpdateEfficiency = (double) numUpdates / (double) message.getInvalidLhss().length;
-			}
-			boolean validation = this.calculatePreference();
-			this.sender().tell(new FDsUpdatedMessage(this.rhs, true, validation, this.fds.hasUnannounceLhss()), this.self());
-		}
-		else {
-			this.sender().tell(new FDsUpdatedMessage(this.rhs, false, false, this.fds.hasUnannounceLhss()), this.self());
-		}
+		// Set update preference if the message is a response to your own request; only validation tasks carry a reference to their sender (and are, therefore, used for updates) - sampling tasks are for everyone
+		final boolean updatePreference = message.getRhs() == this.rhs;
+		
+		// Calculate the validation preference from the validation efficiency if preference needs to be updated
+		final boolean validation = (updatePreference) ? message.getEfficiency() > this.validationThreshold : false;
+		
+		// Report the update
+		this.sender().tell(new FDsUpdatedMessage(this.rhs, updatePreference, validation, this.fds.hasUnannounceLhss()), this.self());
 	}
 	
-	protected boolean calculatePreference() {
-		//this.validationCalculationEfficiency	// validFDs / validations
-		//this.validationUpdateEfficiency		// update / invalidFDs 			Usually 1 if no intermediate updates happened
-		//this.samplingCalculationEfficiency	// matches / comparisons
-		//this.samplingUpdateEfficiency			// updates / matches
-		
-		double validationEfficiency = this.validationCalculationEfficiency; // We ignore the update efficiency, because we cannot know the causes of the extra updates
-		double samplingEfficiency = this.samplingCalculationEfficiency * this.samplingUpdateEfficiency;
-		
-		if (validationEfficiency > this.validationThreshold)
-			return true;
-		
-	//	if (samplingEfficiency > this.samplingThreshold) // Easy sampling idea: If more than 10% candidates are invalid, ask for a sampling round; the profiler will switch the preference back to validation after that preference was served anyway; we then see if we are back into <10% non-FDs
-			return false;
-	}
-
 	protected void handle(FinalizeMessage message) {
 		// Collect all valid lhss
 		BitSet allAttributes = new BitSet(this.fds.getNumAttributes());

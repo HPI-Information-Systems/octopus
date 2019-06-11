@@ -30,7 +30,6 @@ import de.hpi.octopus.actors.slaves.Validator.AttributeFinishedMessage;
 import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
 import de.hpi.octopus.actors.slaves.Validator.TerminateMessage;
 import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
-import de.hpi.octopus.configuration.ConfigurationSingleton;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.DependencyStewardRing;
@@ -251,7 +250,7 @@ public class Profiler extends AbstractMaster {
 			
 			// Create the dependency steward
 			this.dependencyStewards[i] = this.context().actorOf(
-					DependencySteward.props(i, numAttributes, ConfigurationSingleton.get().getMaxLhsSize()), 
+					DependencySteward.props(i, numAttributes), 
 					DependencySteward.DEFAULT_NAME + i);
 			this.context().watch(this.dependencyStewards[i]);
 			this.children++;
@@ -318,7 +317,7 @@ public class Profiler extends AbstractMaster {
 		// Forward the sampling results to the different dependency stewards
 		this.forwardInvalidFDs(-1, false, invalidLhss, invalidRhss, efficiency); // Every SamplingResultMessage is marked to trigger an efficiency update (not only the own sampling requests), because the optimal sampling attribute is chosen independently of the dependency steward's attribute anyway
 		
-		// The sampling fulfills all sampling preferences for all dependency stewards whether or not they actually issued this sampling request or got an update from it
+		// Update all preferences to validation, because the sampling fulfills all sampling preferences for all dependency stewards whether or not they actually issued this sampling request or got an update from it; it is important to do so, because otherwise attributes might prefer sampling forever if they never get a sampling result
 		this.dependencyStewardRing.setValidation(true);
 		
 		// Assign new work to the validator
@@ -335,7 +334,7 @@ public class Profiler extends AbstractMaster {
 			
 			this.dependencyStewardRing.increaseBusy(rhs);
 			
-			this.dependencyStewards[rhs].tell(new InvalidFDsMessage(lhss, validation, validationRequester, efficiency), this.self());
+			this.dependencyStewards[rhs].tell(new InvalidFDsMessage(lhss, validationRequester, efficiency), this.self());
 		}
 	}
 	
@@ -453,10 +452,9 @@ public class Profiler extends AbstractMaster {
 				this.prioritizedSamplingEfficiencies.add(uselessSamplingEfficiency); // The useless attribute can be added back to the top of the priority queue
 			}
 			
+			// Set the sampling efficiency of this attribute the 0 (or basically unknown), because we do not know its sampling performance any more and want to take the next attribute for the next, concurrent sampling request; the actual efficiency of this attribute is updates with the sampling result
 			int distance = samplingEfficiency.step();
 			this.prioritizedSamplingEfficiencies.add(samplingEfficiency);
-			
-			this.dependencyStewardRing.setValidation(attribute, true); // We fulfilled the sampling wish and set the preference to validation; otherwise we would sample forever, if the sampling does not discover any further nonFDs (which were needed to change the preference back to validation)
 			
 			SamplingMessage samplingMessage = new SamplingMessage(samplingEfficiency.getAttribute(), distance);
 			validator.tell(samplingMessage, this.self());

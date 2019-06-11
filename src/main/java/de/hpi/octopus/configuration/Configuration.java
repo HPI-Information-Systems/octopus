@@ -30,6 +30,8 @@ public class Configuration {
 	private int bufferSize = 100; 					// Buffer for input reading (the DatasetReader pre-fetches and buffers this many records)
 	private int maxMessageSize = 1000;				// Maximum size of messages in bytes; used by the LargeMessageProxy to break large messages into chunks of that size
 	
+	private double validationThreshold = 0.8;		// Proportion of true FD candidates in all FD candidates of one validation request; validationThreshold = true/all; if the actual validation efficiency is below that threshold, the dependency Steward switches its discovery strategy from candidate validation to sampling
+	
 	private static String getDefaultHost() {
         try {
             return InetAddress.getLocalHost().getHostAddress();
@@ -49,6 +51,7 @@ public class Configuration {
 		this.startPaused = commandMaster.startPaused;
 		this.bufferSize = commandMaster.bufferSize;
 		this.maxMessageSize = commandMaster.maxMessageSize;
+		this.validationThreshold = commandMaster.validationThreshold;
 	}
 
 	public void update(CommandSlave commandSlave) {
