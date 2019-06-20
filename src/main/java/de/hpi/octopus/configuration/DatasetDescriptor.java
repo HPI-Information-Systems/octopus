@@ -30,10 +30,10 @@ public class DatasetDescriptor implements Serializable {
 	private char attributeEscape = '\\';
 	private String attributeNullString = "";
 	private boolean attributeStrictQuotes = false;
-	private boolean attributeIgnoreLeadingWhitespace = true;
+	private boolean attributeIgnoreLeadingWhitespace = true;	// Ignore i.e. delete all whitespaces preceding any read value 
 	
-	private int readerSkipLines = 0;
-	private boolean readerSkipDifferingLines = true;
+	private int readerSkipLines = 0;							// Number of lines that should be skipped at the beginning of the file
+	private boolean readerSkipDifferingLines = true;			// True if the reader should skip lines in the input that have a different length as the first line
 	
 	public String getDatasetPathNameEnding() {
 		String pathNameSeparator = this.datasetPath.endsWith(File.separator) ? "" : File.separator;

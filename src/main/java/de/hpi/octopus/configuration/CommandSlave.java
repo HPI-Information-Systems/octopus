@@ -11,9 +11,9 @@ public class CommandSlave extends Command {
 		return Configuration.DEFAULT_SLAVE_PORT;
 	}
 
-	@Parameter(names = { "-mh", "--masterhost" }, description = "host name or IP of the master", required = true)
+	@Parameter(names = { "-mh", "--masterhost" }, description = "The host name or IP of the master", required = true)
 	String masterhost;
 
-	@Parameter(names = { "-mp", "--masterport" }, description = "port of the master", required = false)
+	@Parameter(names = { "-mp", "--masterport" }, description = "The port of the master", required = false)
 	int masterport = Configuration.DEFAULT_MASTER_PORT;
 }
