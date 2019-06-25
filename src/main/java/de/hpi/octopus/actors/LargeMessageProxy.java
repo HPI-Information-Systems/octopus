@@ -165,8 +165,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 		LargeMessage<?> largeMessage = this.pendingLargeMessages.remove(senderCounter);
 
 		// Serialize the message into bytes
-		byte[] bytes = KryoPoolSingleton.get().toBytesWithClass(largeMessage.getMessage()); // TODO: toBytesWithoutClass() and then send class info as int
-	//	byte[] bytes = KryoPoolSingleton.get().toBytesWithoutClass(largeMessage.getMessage());
+		byte[] bytes = KryoPoolSingleton.get().toBytesWithClass(largeMessage.getMessage()); // Serialization without class (i.e. toBytesWithoutClass()) is faster, but we need to send class information anyway, so we can simply (and equally efficiently) do it with the serialization itself
 		
 //		this.log().info(bytes.length + " bytes serialized; " + Arrays.hashCode(bytes) + " is their hash code");
 		
@@ -241,8 +240,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 		}
 		
 		// De-serialize the large message
-		Object deserializedMessage = KryoPoolSingleton.get().fromBytes(bytes); // TODO: use class info from somewhere else and then fromBytes(bytes, clazz)
-	//	Object deserializedMessage = KryoPoolSingleton.get().fromBytes(bytes, Indexer.ReceiveAttributesCompactMessage.class);
+		Object deserializedMessage = KryoPoolSingleton.get().fromBytes(bytes); // Possible alternative fromBytes(bytes, clazz)
 
 //		this.log().info(bytes.length + " = " + i + " bytes de-serialized; " + Arrays.hashCode(bytes) + " is their hash code");
 		
