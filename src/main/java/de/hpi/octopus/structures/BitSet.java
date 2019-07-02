@@ -42,7 +42,7 @@ public class BitSet implements Cloneable, Serializable {
 	
 	/**
 	 * Construct a new {@code BitSet} backed by the given worlds array. All bits are set according the the given words array.
-	 * @param words that are directly (i.e. without cloning) used as a backing words array for this new {@code BitSet}
+	 * @param words that are copied as the backing words array for this new {@code BitSet}
 	 * @return a new {@code BitSet} instance with the given words backing it
 	 */
 	public BitSet(long[] words) {
@@ -453,7 +453,7 @@ public class BitSet implements Cloneable, Serializable {
 
 	@Override
 	public BitSet clone() {
-		return new BitSet(this.words.clone());
+		return new BitSet(this.words);
 	}
 	
 	public String toString() {

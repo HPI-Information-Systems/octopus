@@ -1,5 +1,6 @@
 package de.hpi.octopus;
 
+import java.util.Arrays;
 import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;

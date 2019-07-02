@@ -1,10 +1,7 @@
 package de.hpi.octopus.structures;
 
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -14,6 +11,7 @@ import java.util.Comparator;
 import akka.event.LoggingAdapter;
 import de.hpi.octopus.actors.Storekeeper.PlisMessage;
 import de.hpi.octopus.actors.masters.Profiler.DiscoveryTaskMessage;
+import de.hpi.octopus.io.FileSink;
 import de.metanome.algorithm_integration.ColumnIdentifier;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import lombok.AllArgsConstructor;
@@ -193,34 +191,6 @@ public class Dataset {
 		return new PlisMessage(this.plis, this.numRecords);
 	}
 	
-	public void writeToDisk(String fileName) {
-		String fileString = fileName + ".txt";
-		
-		File file = new File(fileString);
-		if (file.exists())
-			file.delete();
-		
-		try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(fileString), Charset.forName("UTF8"))) {
-		    for (int[][] pli : this.plis) {
-				writer.write("[");
-				for (int[] cluster : pli) {
-					writer.write("(");
-					for (int record : cluster)
-						writer.write(" " + record + " ");
-					writer.write(")");
-				}
-				writer.write("]\r\n");
-			}
-		    
-		    for (int[] record : this.records)
-		    	for (int val : record)
-		    		writer.write(val + " ");
-		    
-		} catch (IOException x) {
-		    System.out.println(x.getMessage());
-		}
-	}
-
 	public ColumnIdentifier[] getColumnIdentifiers() {
 		ColumnIdentifier[] columnIdentifiers = new ColumnIdentifier[this.columnNames.length];
 		for (int i = 0; i < this.columnNames.length; i++)
@@ -228,18 +198,11 @@ public class Dataset {
 		return columnIdentifiers;
 	}
 	
-	public Path createOutputPathFor(int rhs) {
-		String pathString = "results" + File.separatorChar + this.getRelationName();
-		String fileString = pathString + File.separatorChar + this.getColumnNames()[rhs] + ".txt";
-		
-		File path = new File(pathString);
-		if (!path.exists())
-			path.mkdirs();
-		
-		File file = new File(fileString);
-		if (file.exists())
-			file.delete();
-		
-		return Paths.get(fileString);
+	public Path getOutputPathFor(int rhs) throws IOException {
+		return Paths.get("results" + File.separatorChar + this.getRelationName() + File.separatorChar + this.getColumnNames()[rhs] + ".txt");
+	}
+	
+	public void writeToDisk(String path) {
+		FileSink.write(this.plis, this.records, path);
 	}
 }

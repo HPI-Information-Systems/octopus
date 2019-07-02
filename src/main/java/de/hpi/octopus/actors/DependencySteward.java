@@ -1,11 +1,6 @@
 package de.hpi.octopus.actors;
 
-import java.io.BufferedWriter;
-import java.io.IOException;
 import java.io.Serializable;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -17,11 +12,11 @@ import de.hpi.octopus.actors.listeners.ProgressListener;
 import de.hpi.octopus.actors.masters.Profiler.CandidateMessage;
 import de.hpi.octopus.actors.masters.Profiler.FDsUpdatedMessage;
 import de.hpi.octopus.configuration.ConfigurationSingleton;
+import de.hpi.octopus.io.FileSink;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.FDStore;
 import de.hpi.octopus.structures.FDTree;
-import de.hpi.octopus.structures.FunctionalDependency;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -165,14 +160,7 @@ public class DependencySteward extends AbstractLoggingActor {
 		this.fds = null;
 		
 		// Write all FDs to disk
-		Path path = message.getDataset().createOutputPathFor(this.rhs);
-		try (BufferedWriter writer = Files.newBufferedWriter(path, Charset.forName("UTF8"))) {
-		    for (BitSet lhs : allLhss) {
-				writer.write(FunctionalDependency.toString(lhs, this.rhs, message.getDataset()));
-			}
-		} catch (IOException x) {
-		    this.log().error("Failed storing results for rhs attribute " + this.rhs, x.getMessage());
-		}
+		FileSink.write(allLhss, this.rhs, message.dataset, this.log());
 		
 		// Tell the progress listener that this dependency steward is done
 		this.context().actorSelection("/user/" + ProgressListener.DEFAULT_NAME).tell(new ProgressListener.FinishedMessage(allLhss.toArray(new BitSet[allLhss.size()]), this.rhs, message.getDataset()), ActorRef.noSender());

@@ -1,11 +1,6 @@
 package de.hpi.octopus.actors.masters;
 
-import java.io.BufferedWriter;
-import java.io.IOException;
 import java.io.Serializable;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
@@ -30,10 +25,10 @@ import de.hpi.octopus.actors.slaves.Validator.AttributeFinishedMessage;
 import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
 import de.hpi.octopus.actors.slaves.Validator.TerminateMessage;
 import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
+import de.hpi.octopus.io.FileSink;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.DependencyStewardRing;
-import de.hpi.octopus.structures.FunctionalDependency;
 import de.hpi.octopus.structures.SamplingEfficiency;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -230,12 +225,8 @@ public class Profiler extends AbstractMaster {
 		for (int i = 0; i < numAttributes; i++) {
 			// Output []->Ai directly and ignore Ai (for candidate generation and sampling), if the attribute is constant
 			if ((this.dataset.getPlis()[i].length == 1) && (this.dataset.getPlis()[i][0].length == this.dataset.getNumRecords())) {
-				Path path = this.dataset.createOutputPathFor(i);
-				try (BufferedWriter writer = Files.newBufferedWriter(path, Charset.forName("UTF8"))) {
-				    writer.write(FunctionalDependency.toString(new BitSet(0), i, this.dataset));
-				} catch (IOException x) {
-				    this.log().error("Failed storing results for rhs attribute " + i, x.getMessage());
-				}
+				// Output []->Ai
+				FileSink.write(new BitSet(0), i, this.dataset, this.log());
 				
 				// Make the dependency steward permanently busy so that it is never asked for more candidates
 				this.dependencyStewardRing.increaseBusy(i);
