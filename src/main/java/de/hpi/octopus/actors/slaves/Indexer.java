@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import akka.actor.ActorRef;
+import akka.actor.PoisonPill;
 import akka.actor.Props;
 import de.hpi.octopus.actors.LargeMessageProxy.LargeMessage;
 import de.hpi.octopus.actors.masters.Preprocessor;
@@ -119,6 +120,11 @@ public class Indexer extends AbstractSlave {
 	@Override
 	protected String getMasterName() {
 		return Preprocessor.DEFAULT_NAME;
+	}
+	
+	@Override
+	protected void handle(TerminateMessage message) {
+		this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
 	}
 	
 	protected void handle(IndexingMessage message) throws IOException {

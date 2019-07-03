@@ -12,6 +12,7 @@ import com.typesafe.config.Config;
 
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
+import akka.actor.PoisonPill;
 import akka.actor.Props;
 import akka.cluster.ClusterEvent.CurrentClusterState;
 import akka.testkit.javadsl.TestKit;
@@ -50,6 +51,11 @@ public class LargeMessageProxyTest {
 		@Override
 		protected String getMasterName() {
 			return "";
+		}
+
+		@Override
+		protected void handle(TerminateMessage message) {
+			this.self().tell(PoisonPill.getInstance(), this.self());
 		}
 	}
 

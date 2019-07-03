@@ -1,6 +1,8 @@
 package de.hpi.octopus.actors.slaves;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 import akka.actor.ActorRef;
@@ -71,17 +73,13 @@ public class Validator extends AbstractSlave {
 		private int attribute;
 	}
 
-	@Data @AllArgsConstructor
-	public static class TerminateMessage implements Serializable {
-		private static final long serialVersionUID = 4184578526050265353L;
-	}
-	
 	/////////////////
 	// Actor State //
 	/////////////////
 
 	private ActorRef storekeeper;
 	
+	private List<AttributeFinishedMessage> finishedRhsAttributesCache = new ArrayList<>();
 	private boolean[] finishedRhsAttributes;
 	
 	private ValidationLogic validationLogic;
@@ -105,7 +103,6 @@ public class Validator extends AbstractSlave {
 				.match(SamplingMessage.class, message -> this.time(this::handle, message))
 				.match(DataMessage.class, message -> this.time(this::handle, message))
 				.match(AttributeFinishedMessage.class, message -> this.time(this::handle, message))
-				.match(TerminateMessage.class, this::handle)
 				.build()
 				.orElse(super.createReceive());
 	}
@@ -132,7 +129,8 @@ public class Validator extends AbstractSlave {
 		//this.log().info("Processed {} in {} ms.", message.getClass().getSimpleName(), System.currentTimeMillis() - t);
 	}
 	
-	private void handle(TerminateMessage message) {
+	@Override
+	protected void handle(TerminateMessage message) {
 		this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
 		this.storekeeper.tell(PoisonPill.getInstance(), ActorRef.noSender());
 	}
@@ -140,6 +138,9 @@ public class Validator extends AbstractSlave {
 	private void handle(DataMessage message) {
 		// Store the data
 		this.finishedRhsAttributes = message.getFinishedRhsAttributes().clone();
+		this.finishedRhsAttributesCache.forEach(m -> this.finishedRhsAttributes[m.getAttribute()] = true);
+		this.finishedRhsAttributesCache = null;
+		
 		this.validationLogic = new ValidationLogic(message.getRecords(), message.getPlis(), message.getFilter(), this.finishedRhsAttributes, this.log());
 		this.samplingLogic = new SamplingLogic(message.getRecords(), message.getPlis(), message.getFilter(), this.finishedRhsAttributes, this.log());
 		
@@ -193,6 +194,13 @@ public class Validator extends AbstractSlave {
 	}
 	
 	private void handle(AttributeFinishedMessage message) {
+		// Put the message aside if we did not receive any data yet
+		if (this.finishedRhsAttributes == null) {
+			this.finishedRhsAttributesCache.add(message);
+			return;
+		}
+		
+		// Mark rhs attribute as finished to not report any further results for it
 		this.finishedRhsAttributes[message.getAttribute()] = true;
 	}
 }

@@ -5,7 +5,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<artifactId>octopus</artifactId>
 	<groupId>hpi.de</groupId>
-	<name>Octopus Data Profiling</name>
+	<name>Octopus</name>
 	<version>1.0</version>
 
 	<properties>

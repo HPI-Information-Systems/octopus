@@ -23,7 +23,7 @@ import de.hpi.octopus.actors.listeners.ProgressListener.FinishedMessage;
 import de.hpi.octopus.actors.slaves.Validator;
 import de.hpi.octopus.actors.slaves.Validator.AttributeFinishedMessage;
 import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
-import de.hpi.octopus.actors.slaves.Validator.TerminateMessage;
+import de.hpi.octopus.actors.slaves.AbstractSlave.TerminateMessage;
 import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
 import de.hpi.octopus.io.FileSink;
 import de.hpi.octopus.structures.BitSet;
