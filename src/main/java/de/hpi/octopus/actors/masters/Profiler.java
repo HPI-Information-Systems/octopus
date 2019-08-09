@@ -303,7 +303,6 @@ public class Profiler extends AbstractMaster {
 		
 		// Calculate sampling efficiency
 		final double efficiency = SamplingEfficiency.calculateEfficiency(numComparisons, numMatches);
-		System.out.println("SE: " + (float) efficiency);
 		
 		// Update the sampling efficiency for the target attribute
 		SamplingEfficiency samplingEfficiency = this.samplingEfficiencies[attribute];

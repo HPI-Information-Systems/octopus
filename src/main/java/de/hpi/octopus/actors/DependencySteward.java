@@ -141,7 +141,6 @@ public class DependencySteward extends AbstractLoggingActor {
 		
 		// Calculate the efficiency
 		final double efficiency = ValidationEfficiency.calculateEfficiency(message.getNumCandidates(), message.getInvalidLhss().length);
-		System.out.println("VE: " + (float) efficiency);
 		
 		// Set update preference if the message is a response to your own request
 		final boolean updatePreference = message.getNumCandidates() > 0;
