@@ -28,9 +28,12 @@ public class CommandMaster extends Command {
 	@Parameter(names = { "-sp", "--startPaused" }, description = "Wait for some console input to start the discovery; useful, if we want to wait manually until all ActorSystems in the cluster are started (e.g. to avoid work stealing effects in performance evaluations)", required = false)
 	boolean startPaused = ConfigurationSingleton.get().isStartPaused();
 
+	@Parameter(names = { "-mcpr", "--maxCandidatesPerRequest" }, description = "Maximum number of FD candidates per candidate validation request; these batches of candidates are validated sequentially", required = false)
+	int maxCandidatesPerRequest = ConfigurationSingleton.get().getMaxCandidatesPerRequest();
+
 	@Parameter(names = { "-bs", "--bufferSize" }, description = "Buffer for input reading (the DatasetReader pre-fetches and buffers this many records)", required = false)
 	int bufferSize = ConfigurationSingleton.get().getBufferSize();
-
+	
 	@Parameter(names = { "-vt", "--validationThreshold" }, description = "Proportion of true FD candidates in all FD candidates of one validation request; validationThreshold = true/all; if the actual validation efficiency is below that threshold, the dependency Steward switches its discovery strategy from candidate validation to sampling", required = false)
 	double validationThreshold = ConfigurationSingleton.get().getValidationThreshold();
 	

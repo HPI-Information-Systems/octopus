@@ -17,6 +17,7 @@ import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.FDStore;
 import de.hpi.octopus.structures.FDTree;
+import de.hpi.octopus.structures.ValidationEfficiency;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -28,8 +29,6 @@ public class DependencySteward extends AbstractLoggingActor {
 	
 	public static final String DEFAULT_NAME = "dependencySteward";
 
-	public static final int MAX_CANDIDATES_PER_REQUEST = 50;
-	
 	public static Props props(int rhs, int numAttributes) {
 		return Props.create(DependencySteward.class, () -> new DependencySteward(rhs, numAttributes));
 	}
@@ -39,6 +38,7 @@ public class DependencySteward extends AbstractLoggingActor {
 		this.fds = new FDTree(numAttributes, rhs);
 		
 		this.maxDepth = ConfigurationSingleton.get().getMaxLhsSize();
+		this.maxCandidatesPerRequest = ConfigurationSingleton.get().getMaxCandidatesPerRequest();
 		this.validationThreshold = ConfigurationSingleton.get().getValidationThreshold();
 	}
 
@@ -50,9 +50,8 @@ public class DependencySteward extends AbstractLoggingActor {
 	public static class InvalidFDsMessage implements Serializable {
 		private static final long serialVersionUID = -102767440935270949L;
 		private InvalidFDsMessage() {}
-		private BitSet[] invalidLhss;
-		private int rhs; // The rhs of the dependency steward that requested the validation that led to this result message; -1 for sampling results, because sampling is for everyone
-		private double efficiency;
+		private BitSet[] invalidLhss; // The invalid lhss for this rhs
+		private int numCandidates; // The number of candidates that have been tested for this rhs; -1 if the invalid FDs were found with candidates from other rhss or if sampling was used, because sampling is for everyone
 	}
 	
 	@Data @AllArgsConstructor
@@ -73,9 +72,9 @@ public class DependencySteward extends AbstractLoggingActor {
 	private int rhs;
 	private FDStore fds;
 	
-	private int maxDepth;
-	
-	private double validationThreshold;
+	private final int maxDepth; // TODO: Control with memory guardian
+	private final int maxCandidatesPerRequest;
+	private final double validationThreshold;
 	
 	/////////////////////
 	// Actor Lifecycle //
@@ -94,21 +93,21 @@ public class DependencySteward extends AbstractLoggingActor {
 	@Override
 	public Receive createReceive() {
 		return receiveBuilder()
-				.match(InvalidFDsMessage.class, message -> this.time(this::handle, message, message.getInvalidLhss().length))
-				.match(CandidateRequestMessage.class, message -> this.time(this::handle, message, MAX_CANDIDATES_PER_REQUEST))
-				.match(FinalizeMessage.class, message -> this.time(this::handle, message, 1))
+				.match(InvalidFDsMessage.class, message -> this.time(this::handle, message))
+				.match(CandidateRequestMessage.class, message -> this.time(this::handle, message))
+				.match(FinalizeMessage.class, message -> this.time(this::handle, message))
 				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
 				.build();
 	}
 
-	private <T> void time(Consumer<T> handle, T message, int size) {
+	private <T> void time(Consumer<T> handle, T message) {
 //		long t = System.currentTimeMillis();
 		handle.accept(message);
-//		this.log().info("Processed {} in {} ms given a message size of {}.", message.getClass().getSimpleName(), System.currentTimeMillis() - t, size);
+//		this.log().info("Processed {} in {} ms.", message.getClass().getSimpleName(), System.currentTimeMillis() - t);
 	}
 	
 	protected void handle(CandidateRequestMessage message) {
-		BitSet[] lhss = this.fds.announceLhss(MAX_CANDIDATES_PER_REQUEST);
+		BitSet[] lhss = this.fds.announceLhss(this.maxCandidatesPerRequest);
 		this.sender().tell(new CandidateMessage(lhss, this.rhs), this.self());
 	}
 	
@@ -140,11 +139,15 @@ public class DependencySteward extends AbstractLoggingActor {
 			}
 		}
 		
-		// Set update preference if the message is a response to your own request; only validation tasks carry a reference to their sender (and are, therefore, used for updates) - sampling tasks are for everyone
-		final boolean updatePreference = message.getRhs() == this.rhs;
+		// Calculate the efficiency
+		final double efficiency = ValidationEfficiency.calculateEfficiency(message.getNumCandidates(), message.getInvalidLhss().length);
+		System.out.println("VE: " + (float) efficiency);
 		
-		// Calculate the validation preference from the validation efficiency if preference needs to be updated
-		final boolean validation = (updatePreference) ? message.getEfficiency() > this.validationThreshold : false;
+		// Set update preference if the message is a response to your own request
+		final boolean updatePreference = message.getNumCandidates() > 0;
+		
+		// Derive the validation preference from the efficiency
+		final boolean validation = efficiency > this.validationThreshold;
 		
 		// Report the update
 		this.sender().tell(new FDsUpdatedMessage(this.rhs, updatePreference, validation, this.fds.hasUnannounceLhss()), this.self());

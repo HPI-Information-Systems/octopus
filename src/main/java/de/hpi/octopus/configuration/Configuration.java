@@ -28,8 +28,9 @@ public class Configuration {
 	private boolean startPaused = false;			// Wait for some console input to start the discovery; useful, if we want to wait manually until all ActorSystems in the cluster are started (e.g. to avoid work stealing effects in performance evaluations)
 	
 	private int bufferSize = 100; 					// Buffer for input reading (the DatasetReader pre-fetches and buffers this many records)
-	private int maxMessageSize = 1000;				// Maximum size of messages in bytes; larger messages will be broken into chunks of this size; needs to be the same value for all actor systems in the cluster
+	private int maxMessageSize = 1000;				// Maximum size of messages in bytes; larger messages will be broken into chunks of this size; needs to be the same value for all actor systems in the cluster; hence, its not a parameter of the algorithm
 	
+	private int maxCandidatesPerRequest = 10;		// Maximum number of FD candidates per candidate validation request; these batches of candidates are validated sequentially
 	private double validationThreshold = 0.8;		// Proportion of true FD candidates in all FD candidates of one validation request; validationThreshold = true/all; if the actual validation efficiency is below that threshold, the dependency Steward switches its discovery strategy from candidate validation to sampling
 	
 	private static String getDefaultHost() {

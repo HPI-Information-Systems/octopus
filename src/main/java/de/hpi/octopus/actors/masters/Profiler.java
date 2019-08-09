@@ -78,7 +78,7 @@ public class Profiler extends AbstractMaster {
 		private ValidationResultMessage() {}
 		private BitSet[][] invalidLhss;
 		private int[] invalidRhss;
-		private double efficiency;
+		private int numCandidates;
 	}
 
 	@Data @AllArgsConstructor @SuppressWarnings("unused")
@@ -87,7 +87,8 @@ public class Profiler extends AbstractMaster {
 		private SamplingResultMessage() {}
 		private BitSet[][] invalidLhss;
 		private int[] invalidRhss;
-		private double efficiency;
+		private int numComparisons;
+		private int numMatches;
 	}
 	
 	@Data @AllArgsConstructor @SuppressWarnings("unused")
@@ -274,13 +275,13 @@ public class Profiler extends AbstractMaster {
 		final int validationRequester = validationMessage.getRhs(); // Who asked for this validation
 		final BitSet[][] invalidLhss = validationResultMessage.getInvalidLhss();
 		final int[] invalidRhss = validationResultMessage.getInvalidRhss();
-		final double efficiency = validationResultMessage.getEfficiency();
+		final int numCandidates = validationResultMessage.getNumCandidates();
 		
 		// Consider the current validator as idle; this is important, because if the profiling is done, we need to notify all validators that they can terminate
 		this.idleValidators.add(validator);
 		
 		// Forward the validation results to the different dependency stewards
-		this.forwardInvalidFDs(validationRequester, true, invalidLhss, invalidRhss, efficiency);
+		this.forwardInvalidFDs(validationRequester, true, invalidLhss, invalidRhss, numCandidates);
 		
 		// Check if the validation requester is done and, if true, finish that dependency steward; finish the discovery if done entirely
 		this.finishStewardIfDone(validationRequester);
@@ -297,7 +298,12 @@ public class Profiler extends AbstractMaster {
 		final int distance = samplingMessage.getDistance();
 		final BitSet[][] invalidLhss = samplingResultMessage.getInvalidLhss();
 		final int[] invalidRhss = samplingResultMessage.getInvalidRhss();
-		final double efficiency = samplingResultMessage.getEfficiency();
+		final int numComparisons = samplingResultMessage.getNumComparisons();
+		final int numMatches = samplingResultMessage.getNumMatches();
+		
+		// Calculate sampling efficiency
+		final double efficiency = SamplingEfficiency.calculateEfficiency(numComparisons, numMatches);
+		System.out.println("SE: " + (float) efficiency);
 		
 		// Update the sampling efficiency for the target attribute
 		SamplingEfficiency samplingEfficiency = this.samplingEfficiencies[attribute];
@@ -306,7 +312,7 @@ public class Profiler extends AbstractMaster {
 		this.prioritizedSamplingEfficiencies.add(samplingEfficiency);
 		
 		// Forward the sampling results to the different dependency stewards
-		this.forwardInvalidFDs(-1, false, invalidLhss, invalidRhss, efficiency); // Every SamplingResultMessage is marked to trigger an efficiency update (not only the own sampling requests), because the optimal sampling attribute is chosen independently of the dependency steward's attribute anyway
+		this.forwardInvalidFDs(-1, false, invalidLhss, invalidRhss, -1); // Every SamplingResultMessage is marked to trigger an efficiency update (not only the own sampling requests), because the optimal sampling attribute is chosen independently of the dependency steward's attribute anyway
 		
 		// Update all preferences to validation, because the sampling fulfills all sampling preferences for all dependency stewards whether or not they actually issued this sampling request or got an update from it; it is important to do so, because otherwise attributes might prefer sampling forever if they never get a sampling result
 		this.dependencyStewardRing.setValidation(true);
@@ -315,7 +321,7 @@ public class Profiler extends AbstractMaster {
 		this.assign(validator);
 	}
 	
-	protected void forwardInvalidFDs(final int validationRequester, final boolean validation, final BitSet[][] invalidLhss, final int[] invalidRhss, final double efficiency) {
+	protected void forwardInvalidFDs(final int validationRequester, final boolean validation, final BitSet[][] invalidLhss, final int[] invalidRhss, final int numCandidates) {
 		for (int i = 0; i < invalidRhss.length; i++) {
 			final int rhs = invalidRhss[i];
 			final BitSet[] lhss = invalidLhss[i];
@@ -325,7 +331,7 @@ public class Profiler extends AbstractMaster {
 			
 			this.dependencyStewardRing.increaseBusy(rhs);
 			
-			this.dependencyStewards[rhs].tell(new InvalidFDsMessage(lhss, validationRequester, efficiency), this.self());
+			this.dependencyStewards[rhs].tell(new InvalidFDsMessage(lhss, (validationRequester == rhs) ? numCandidates : -1), this.self());
 		}
 	}
 	

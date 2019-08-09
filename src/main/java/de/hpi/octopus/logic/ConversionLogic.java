@@ -8,8 +8,6 @@ import de.hpi.octopus.actors.masters.Profiler.SamplingResultMessage;
 import de.hpi.octopus.actors.masters.Profiler.ValidationResultMessage;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.FunctionalDependency;
-import de.hpi.octopus.structures.SamplingEfficiency;
-import de.hpi.octopus.structures.ValidationEfficiency;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 
@@ -47,8 +45,6 @@ public class ConversionLogic {
 	public static ValidationResultMessage fds2ValidationResultMessage(List<FunctionalDependency> invalidFDs, int rhs, int numCandidates) {
 		Collections.sort(invalidFDs);
 		
-		double efficiency = 1; // If there are no invalid fds, the efficiency is 100%
-		
 		List<BitSet[]> invalidLhss = new ArrayList<>();
 		IntList invalidRhss = new IntArrayList();
 		int i = 0;
@@ -65,9 +61,6 @@ public class ConversionLogic {
 			
 			invalidLhss.add(currentLhss);
 			invalidRhss.add(currentRhs);
-		
-			if (currentRhs == rhs)
-				efficiency = ValidationEfficiency.calculateEfficiency(numCandidates, currentLhss.length);
 			
 			i = j;
 		}
@@ -75,13 +68,11 @@ public class ConversionLogic {
 		return new ValidationResultMessage(
 				invalidLhss.toArray(new BitSet[invalidRhss.size()][]), 
 				invalidRhss.toArray(new int[invalidRhss.size()]),
-				efficiency);
+				numCandidates);
 	}
 	
 	public static SamplingResultMessage fds2SamplingResultMessage(List<FunctionalDependency> invalidFDs, int numComparisons, int numMatches) {
 		Collections.sort(invalidFDs);
-		
-		double efficiency = SamplingEfficiency.calculateEfficiency(numComparisons, numMatches);
 		
 		List<BitSet[]> invalidLhss = new ArrayList<>();
 		IntList invalidRhss = new IntArrayList();
@@ -106,7 +97,8 @@ public class ConversionLogic {
 		return new SamplingResultMessage(
 				invalidLhss.toArray(new BitSet[invalidRhss.size()][]), 
 				invalidRhss.toArray(new int[invalidRhss.size()]),
-				efficiency);
+				numComparisons,
+				numMatches);
 	}
 
 	public static String pli2String(int[][] pli) {

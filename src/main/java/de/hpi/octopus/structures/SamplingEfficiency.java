@@ -23,7 +23,12 @@ public class SamplingEfficiency implements Comparable<SamplingEfficiency> {
 	}
 	
 	public static double calculateEfficiency(int comparisons, int matches) {
-		return (comparisons == 0) ? 0 : (double) matches / (double) comparisons;
+		// Report an efficiency of 0, if no record comparisons have been executed
+		if (comparisons == 0)
+			return 0;
+		
+		// Report the percentage of matching records by all compared records as efficiency
+		return (double) matches / (double) comparisons;
 	}
 	
 	public void update(double efficiency, int distance) {
