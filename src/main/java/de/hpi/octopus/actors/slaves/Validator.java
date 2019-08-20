@@ -17,6 +17,7 @@ import de.hpi.octopus.logic.SamplingLogic;
 import de.hpi.octopus.logic.ValidationLogic;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.BloomFilter;
+import de.hpi.octopus.structures.PliCache;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -62,6 +63,7 @@ public class Validator extends AbstractSlave {
 		private DataMessage() {}
 		private int[][][] plis;
 		private int[][] records;
+		private PliCache pliCache;
 		private BloomFilter filter;
 		private boolean[] finishedRhsAttributes;
 	}
@@ -141,7 +143,7 @@ public class Validator extends AbstractSlave {
 		this.finishedRhsAttributesCache.forEach(m -> this.finishedRhsAttributes[m.getAttribute()] = true);
 		this.finishedRhsAttributesCache = null;
 		
-		this.validationLogic = new ValidationLogic(message.getRecords(), message.getPlis(), message.getFilter(), this.finishedRhsAttributes, this.log());
+		this.validationLogic = new ValidationLogic(message.getRecords(), message.getPlis(), message.getPliCache(), message.getFilter(), this.finishedRhsAttributes, this.log());
 		this.samplingLogic = new SamplingLogic(message.getRecords(), message.getPlis(), message.getFilter(), this.finishedRhsAttributes, this.log());
 		
 		// Remove waiting message and sender
