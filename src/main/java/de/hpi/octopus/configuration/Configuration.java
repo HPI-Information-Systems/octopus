@@ -30,7 +30,7 @@ public class Configuration {
 	private int bufferSize = 100; 					// Buffer for input reading (the DatasetReader pre-fetches and buffers this many records)
 	private int maxMessageSize = 1000;				// Maximum size of messages in bytes; larger messages will be broken into chunks of this size; needs to be the same value for all actor systems in the cluster; hence, its not a parameter of the algorithm
 	
-	private int maxCandidatesPerRequest = 100;		// Maximum number of FD candidates per candidate validation request; these batches of candidates are validated sequentially
+	private int maxCandidatesPerRequest = 30;		// Maximum number of FD candidates per candidate validation request; these batches of candidates are validated sequentially
 	private double validationThreshold = 0.8;		// Proportion of true FD candidates in all FD candidates of one validation request; validationThreshold = true/all; if the actual validation efficiency is below that threshold, the dependency Steward switches its discovery strategy from candidate validation to sampling
 	
 	private int pliCachePrefixLength = 3;			// The maximum number of lhs prefix attributes for which the FD candidate validation should calculate and cache intermediate plis; e.g. for prefix 3 and candidate ABCD->E, we calculate the plis for A, AB, and ABC, cache them and use ABC for validation

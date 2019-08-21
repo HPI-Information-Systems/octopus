@@ -111,19 +111,35 @@ public class ValidationLogic {
 	// Found 169316 FDs in 21106 ms
 	// Found 169316 FDs in 20822 ms
 	// Found 169316 FDs in 20979 ms
+	//
+	// pliCachePrefixLength (for ncvoter_Statewide_10001r_71c):
+	// With reduction sensitive cache, i.e., only cache if average cluster size decreases by at least 50% (blacklisting)
+	// Found 169316 FDs in 17844 ms
 	private int[] findViolationCached(int[] lhs, int rhs) {
 		// Find a small pli to start with in the cache; create it if necessary
 		int[][] pivotPli = this.plis[lhs[0]];
 		for (int i = 2; (i <= lhs.length) && (i <= this.pliCachePrefixLength); i++) {
 			int[] prefix = Arrays.copyOf(lhs, i);
 			
+			// Check if pivotPli is blacklisted and break pli search if it is
+			if (this.pliCache.isBlacklisted(prefix))
+				break;
+			
 			// Try to take the pivotPli from the cache
 			int[][] cachedPli = this.pliCache.get(prefix);
 			
-			// If the cache does not contain the intersection of the first i attributes, create it and add it
+			// If the cache does not contain the intersection of the first pliCachePrefixLength attributes, create it and add it
 			if (cachedPli == null) {
 				cachedPli = this.intersect(pivotPli, lhs[i - 1]);
-				this.pliCache.add(prefix, cachedPli);
+				
+				// Assess the reduction factor and depending on the factor, either chache or blacklist
+				if (this.calculateReduction(pivotPli, cachedPli) < 0.5f) {
+					this.pliCache.add(prefix, cachedPli);
+				}
+				else {
+					this.pliCache.blacklist(prefix);
+					break;
+				}
 			}
 			pivotPli = cachedPli;
 		}
@@ -203,5 +219,26 @@ public class ValidationLogic {
 			intersectedPli[i] = clusters.get(i).toIntArray();
 		
 		return intersectedPli;
+	}
+	
+	private double calculateReduction(int[][] originalPli, int[][] reducedPli) {
+		final int originalNumClusters = originalPli.length;
+		final int reducedNumClusters = reducedPli.length;
+		
+		int originalNumClusterRecords = 0;
+		for (int i = 0; i < originalPli.length; i++)
+			originalNumClusterRecords += originalPli[i].length;
+		
+		int reducedNumClusterRecords = 0;
+		for (int i = 0; i < reducedPli.length; i++)
+			reducedNumClusterRecords += reducedPli[i].length;
+		
+		// Option 1: reduction based on number of records
+	//	return (float) reducedNumClusterRecords / (float) originalNumClusterRecords;
+		
+		// Option 2: reduction based on numbers per cluster
+		double originalRecordsPerCluster = originalNumClusterRecords / originalNumClusters;
+		double reducedRecordsPerCluster = originalNumClusterRecords / (reducedNumClusters + (originalNumClusterRecords - reducedNumClusterRecords)); // The same records from before are now in the reducedNumClusters + the new clusters of size 1
+		return reducedRecordsPerCluster / originalRecordsPerCluster;
 	}
 }
