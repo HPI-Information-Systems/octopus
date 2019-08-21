@@ -33,6 +33,9 @@ public class Configuration {
 	private int maxCandidatesPerRequest = 100;		// Maximum number of FD candidates per candidate validation request; these batches of candidates are validated sequentially
 	private double validationThreshold = 0.8;		// Proportion of true FD candidates in all FD candidates of one validation request; validationThreshold = true/all; if the actual validation efficiency is below that threshold, the dependency Steward switches its discovery strategy from candidate validation to sampling
 	
+	private int pliCachePrefixLength = 3;			// The maximum number of lhs prefix attributes for which the FD candidate validation should calculate and cache intermediate plis; e.g. for prefix 3 and candidate ABCD->E, we calculate the plis for A, AB, and ABC, cache them and use ABC for validation
+	private int validationSmallClusterSize = 40;	// The maximum size of pli clusters that are validated (i.e. intersected) via nested-loops; larger clusters use hash-maps for validation
+	
 	private static String getDefaultHost() {
         try {
             return InetAddress.getLocalHost().getHostAddress();

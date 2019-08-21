@@ -8,7 +8,7 @@ public class MatchingLogic {
 				return false;
 		return true;
 	}
-
+	
 	public static boolean isMatch(final int[] record1, final int[] record2, final int attribute) {
 		return isEqual(record1[attribute], record2[attribute]);
 	}
