@@ -86,6 +86,7 @@ public class Worker extends AbstractSlave {
 		private int[][][] plis;
 		private int[][] records;
 		private PliCache pliCache;
+		private ActorRef pliCacheManipulator;
 		private BloomFilter filter;
 		private ActorRef filterManipulator;
 	}
@@ -169,7 +170,7 @@ public class Worker extends AbstractSlave {
 		this.finishedRhsAttributesCache.forEach(m -> this.finishedRhsAttributes[m.getAttribute()] = true);
 		this.finishedRhsAttributesCache = null;
 		
-		this.validator = this.context().actorOf(Validator.props(message.getRecords(), message.getPlis(), message.getPliCache(), message.getFilterManipulator()), Validator.DEFAULT_NAME);
+		this.validator = this.context().actorOf(Validator.props(message.getRecords(), message.getPlis(), message.getPliCache(), message.getPliCacheManipulator(), message.getFilterManipulator()), Validator.DEFAULT_NAME);
 		this.sampler = this.context().actorOf(Sampler.props(message.getRecords(), message.getPlis(), message.getFilter(), message.getFilterManipulator()), Sampler.DEFAULT_NAME);
 		
 		// Remove waiting message and sender

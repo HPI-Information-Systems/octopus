@@ -23,7 +23,7 @@ public class FilterManipulator extends AbstractLoggingActor {
 	}
 
 	public FilterManipulator(final BloomFilter filter) {
-		this.filter = new BloomFilter();
+		this.filter = filter;
 	}
 
 	////////////////////

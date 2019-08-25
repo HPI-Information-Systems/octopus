@@ -34,14 +34,15 @@ public class Validator extends AbstractLoggingActor {
 	
 	public static final String DEFAULT_NAME = "validator";
 
-	public static Props props(final int[][] records, final int[][][] plis, final PliCache pliCache, final ActorRef filterManipulator) {
-		return Props.create(Validator.class, () -> new Validator(records, plis, pliCache, filterManipulator));
+	public static Props props(final int[][] records, final int[][][] plis, final PliCache pliCache, final ActorRef pliCacheManipulator, final ActorRef filterManipulator) {
+		return Props.create(Validator.class, () -> new Validator(records, plis, pliCache, pliCacheManipulator, filterManipulator));
 	}
 
-	public Validator(final int[][] records, final int[][][] plis, final PliCache pliCache, final ActorRef filterManipulator) {
+	public Validator(final int[][] records, final int[][][] plis, final PliCache pliCache, final ActorRef pliCacheManipulator, final ActorRef filterManipulator) {
 		this.records = records;
 		this.plis = plis;
 		this.pliCache = pliCache;
+		this.pliCacheManipulator = pliCacheManipulator;
 		this.pliCachePrefixLength = ConfigurationSingleton.get().getPliCachePrefixLength();
 		this.validationSmallClusterSize = ConfigurationSingleton.get().getValidationSmallClusterSize();
 		this.filterManipulator = filterManipulator;
@@ -72,6 +73,7 @@ public class Validator extends AbstractLoggingActor {
 	private final int[][] records;
 	private final int[][][] plis;
 	private final PliCache pliCache;
+	private final ActorRef pliCacheManipulator;
 	private final int pliCachePrefixLength;
 	private final int validationSmallClusterSize;
 	private final ActorRef filterManipulator;
@@ -183,10 +185,10 @@ public class Validator extends AbstractLoggingActor {
 				
 				// Assess the reduction factor and depending on the factor, either chache or blacklist
 				if (this.calculateReduction(pivotPli, cachedPli) < 0.8f) {
-					this.pliCache.add(prefix, cachedPli);
+					this.pliCache.add(prefix, cachedPli); // TODO: use this.pliCacheManipulator
 				}
 				else {
-					this.pliCache.blacklist(prefix);
+					this.pliCache.blacklist(prefix); // TODO: use this.pliCacheManipulator
 					break;
 				}
 			}

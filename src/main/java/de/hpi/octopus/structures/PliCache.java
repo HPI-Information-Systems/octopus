@@ -22,14 +22,14 @@ public class PliCache {
 		return this.children[attributes[0]].get(attributes, 1);
 	}
 
-	public synchronized void blacklist(final int[] attributes) {
+	public void blacklist(final int[] attributes) {
 		if (this.children[attributes[0]] == null)
 			this.children[attributes[0]] = new PliCacheElement(this.children.length);
 		
 		this.children[attributes[0]].blacklist(attributes, 1);
 	}
 	
-	public synchronized void add(final int[] attributes, final int[][] pli) {
+	public void add(final int[] attributes, final int[][] pli) {
 		if (this.children[attributes[0]] == null)
 			this.children[attributes[0]] = new PliCacheElement(this.children.length);
 		

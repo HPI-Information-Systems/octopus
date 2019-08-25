@@ -65,6 +65,7 @@ public class Storekeeper extends AbstractLoggingActor {
 	
 	private Dataset dataset;
 	private PliCache pliCache;
+	private ActorRef pliCacheManipulator;
 	private BloomFilter filter;
 	private ActorRef filterManipulator;
 
@@ -122,7 +123,7 @@ public class Storekeeper extends AbstractLoggingActor {
 	private void handle(SendDataMessage message) {
 		// If the data is already present, send the data
 		if (this.dataset != null) {
-			final DataMessage dataMessage = new DataMessage(this.dataset.getPlis(), this.dataset.getRecords(), this.pliCache, this.filter, this.filterManipulator);
+			final DataMessage dataMessage = new DataMessage(this.dataset.getPlis(), this.dataset.getRecords(), this.pliCache, this.pliCacheManipulator, this.filter, this.filterManipulator);
 			this.sender().tell(dataMessage, this.self());
 			return;
 		}
@@ -141,13 +142,14 @@ public class Storekeeper extends AbstractLoggingActor {
 		
 		// Create a pliCache for this dataset
 		this.pliCache = new PliCache(message.getPlis().length);
+		this.pliCacheManipulator = this.context().actorOf(PliCacheManipulator.props(this.pliCache), PliCacheManipulator.DEFAULT_NAME);
 		
 		// Create a filter for this dataset
 		this.filter = new BloomFilter();
 		this.filterManipulator = this.context().actorOf(FilterManipulator.props(this.filter), FilterManipulator.DEFAULT_NAME);
 		
 		// Create the data message
-		final DataMessage dataMessage = new DataMessage(this.dataset.getPlis(), this.dataset.getRecords(), this.pliCache, this.filter, this.filterManipulator);
+		final DataMessage dataMessage = new DataMessage(this.dataset.getPlis(), this.dataset.getRecords(), this.pliCache, this.pliCacheManipulator, this.filter, this.filterManipulator);
 		
 		// Send the plis and pli-records to all validators waiting for it
 		for (ActorRef validator : this.waitingValidators)

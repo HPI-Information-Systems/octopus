@@ -107,6 +107,7 @@ public class Sampler extends AbstractLoggingActor {
 		
 		List<BitSet> prunedMatches = new ArrayList<BitSet>(matches);
 		
+		// Add the discovered matches to the filter so that they are not reported again
 		this.filterManipulator.tell(new AddAllMessage(prunedMatches), this.self());
 		
 //		prunedMatches = this.filterSmallMatches(matches);
