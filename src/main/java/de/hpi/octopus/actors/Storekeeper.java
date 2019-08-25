@@ -2,7 +2,6 @@ package de.hpi.octopus.actors;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import akka.actor.AbstractLoggingActor;
@@ -17,7 +16,7 @@ import akka.cluster.MemberStatus;
 import de.hpi.octopus.OctopusMaster;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.masters.Profiler.SendPlisMessage;
-import de.hpi.octopus.actors.slaves.Validator.DataMessage;
+import de.hpi.octopus.actors.slaves.Worker.DataMessage;
 import de.hpi.octopus.structures.BloomFilter;
 import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.PliCache;
@@ -67,7 +66,7 @@ public class Storekeeper extends AbstractLoggingActor {
 	private Dataset dataset;
 	private PliCache pliCache;
 	private BloomFilter filter;
-	private boolean[] finishedRhsAttributes;
+	private ActorRef filterManipulator;
 
 	private final List<ActorRef> waitingValidators = new ArrayList<>();
 	
@@ -123,7 +122,7 @@ public class Storekeeper extends AbstractLoggingActor {
 	private void handle(SendDataMessage message) {
 		// If the data is already present, send the data
 		if (this.dataset != null) {
-			final DataMessage dataMessage = new DataMessage(this.dataset.getPlis(), this.dataset.getRecords(), this.pliCache, this.filter, this.finishedRhsAttributes);
+			final DataMessage dataMessage = new DataMessage(this.dataset.getPlis(), this.dataset.getRecords(), this.pliCache, this.filter, this.filterManipulator);
 			this.sender().tell(dataMessage, this.self());
 			return;
 		}
@@ -145,13 +144,10 @@ public class Storekeeper extends AbstractLoggingActor {
 		
 		// Create a filter for this dataset
 		this.filter = new BloomFilter();
-		
-		// Create a finished attributes array
-		this.finishedRhsAttributes = new boolean[message.getPlis().length];
-		Arrays.fill(this.finishedRhsAttributes, false);
+		this.filterManipulator = this.context().actorOf(FilterManipulator.props(this.filter), FilterManipulator.DEFAULT_NAME);
 		
 		// Create the data message
-		final DataMessage dataMessage = new DataMessage(this.dataset.getPlis(), this.dataset.getRecords(), this.pliCache, this.filter, this.finishedRhsAttributes);
+		final DataMessage dataMessage = new DataMessage(this.dataset.getPlis(), this.dataset.getRecords(), this.pliCache, this.filter, this.filterManipulator);
 		
 		// Send the plis and pli-records to all validators waiting for it
 		for (ActorRef validator : this.waitingValidators)

@@ -1,35 +1,93 @@
-package de.hpi.octopus.logic;
+package de.hpi.octopus.actors;
 
+import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
-import akka.event.LoggingAdapter;
-import de.hpi.octopus.actors.masters.Profiler.SamplingResultMessage;
-import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
+import akka.actor.AbstractLoggingActor;
+import akka.actor.ActorRef;
+import akka.actor.Props;
+import de.hpi.octopus.actors.FilterManipulator.AddAllMessage;
+import de.hpi.octopus.actors.slaves.Worker.DetailedSamplingResultMessage;
+import de.hpi.octopus.actors.slaves.Worker.SamplingMessage;
+import de.hpi.octopus.logic.ConversionLogic;
+import de.hpi.octopus.logic.MatchingLogic;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.BloomFilter;
 import de.hpi.octopus.structures.FunctionalDependency;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 
-public class SamplingLogic {
+public class Sampler extends AbstractLoggingActor {
 
-	private final int[][] records;
-	private final int[][][] plis;
-	private final BloomFilter filter;
-	private boolean[] finishedRhsAttributes;
+	////////////////////////
+	// Actor Construction //
+	////////////////////////
 	
-	@SuppressWarnings("unused")
-	private final LoggingAdapter log;
-	
-	public SamplingLogic(final int[][] records, final int[][][] plis, final BloomFilter filter, final boolean[] finishedRhsAttributes, final LoggingAdapter log) {
+	public static final String DEFAULT_NAME = "sampler";
+
+	public static Props props(final int[][] records, final int[][][] plis, final BloomFilter filter, final ActorRef filterManipulator) {
+		return Props.create(Sampler.class, () -> new Sampler(records, plis, filter, filterManipulator));
+	}
+
+	public Sampler(final int[][] records, final int[][][] plis, final BloomFilter filter, final ActorRef filterManipulator) {
 		this.records = records;
 		this.plis = plis;
 		this.filter = filter;
-		this.finishedRhsAttributes = finishedRhsAttributes;
-		this.log = log;
+		this.filterManipulator = filterManipulator;
 	}
 
-	public SamplingResultMessage process(SamplingMessage message) {
-		List<BitSet> matches = new ArrayList<>();
+	////////////////////
+	// Actor Messages //
+	////////////////////
+
+	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	public static class DetailedSamplingMessage implements Serializable {
+		private static final long serialVersionUID = 6609781303993431757L;
+		private DetailedSamplingMessage() {}
+		public DetailedSamplingMessage(final SamplingMessage message, final boolean[] finishedRhsAttributes) {
+			this.attribute = message.getAttribute();
+			this.distance = message.getDistance();
+			this.finishedRhsAttributes = finishedRhsAttributes;
+		}
+		private int attribute;
+		private int distance;
+		private boolean[] finishedRhsAttributes;
+	}
+
+	/////////////////
+	// Actor State //
+	/////////////////
+
+	private final int[][] records;
+	private final int[][][] plis;
+	private volatile BloomFilter filter;
+	private final ActorRef filterManipulator;
+	
+	/////////////////////
+	// Actor Lifecycle //
+	/////////////////////
+
+	////////////////////
+	// Actor Behavior //
+	////////////////////
+
+	@Override
+	public Receive createReceive() {
+		return receiveBuilder()
+				.match(DetailedSamplingMessage.class, this::handle)
+				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
+				.build();
+	}
+
+	protected void handle(DetailedSamplingMessage message) {
+		// Reset the filter reference to make its elements effectively volatile (to see changes possibly made in other cache hierarchies)
+		this.filter = this.filter;
+		
+		//List<BitSet> matches = new ArrayList<>(); // With a list, we need to deduplicate after collecting the matches and before removing subsets
+		Set<BitSet> matches = new HashSet<>();
 		
 		// Match all records with their "distance" neighbor w.r.t. the pli of the given "attribute"
 		BitSet match = new BitSet(this.plis.length);
@@ -41,24 +99,27 @@ public class SamplingLogic {
 						match.set(attribute);
 				numComparisons++;
 				
-				if (this.filter.add(match))
+				if (!this.filter.contains(match)) // A direct "add()" here would require a synchronize method that breaks the actor model, but its faster...
 					matches.add(match.clone());
 				match.clear();
 			}
 		}
 		
+		List<BitSet> prunedMatches = new ArrayList<BitSet>(matches);
+		
+		this.filterManipulator.tell(new AddAllMessage(prunedMatches), this.self());
+		
+//		prunedMatches = this.filterSmallMatches(matches);
+		prunedMatches = this.pruneSubsets(prunedMatches);
+		
 		// Convert matches into invalid FDs
-//		matches = this.filterSmallMatches(matches);
-		matches = this.pruneSubsets(matches);
-		final List<FunctionalDependency> invalidFDs = ConversionLogic.matches2FDs(matches, this.plis.length, this.finishedRhsAttributes);
+		final List<FunctionalDependency> invalidFDs = ConversionLogic.matches2FDs(prunedMatches, this.plis.length, message.getFinishedRhsAttributes());
 		
 		int numMatches = matches.size();
 		matches = null;
 		
 		// Send the result to the sender of the sampling message
-		final SamplingResultMessage samplingResult = ConversionLogic.fds2SamplingResultMessage(invalidFDs, numComparisons, numMatches);
-		
-		return samplingResult;
+		this.sender().tell(new DetailedSamplingResultMessage(invalidFDs, numComparisons, numMatches), this.self());
 	}
 	
 	private List<BitSet> pruneSubsets(List<BitSet> matches) {
@@ -86,7 +147,7 @@ public class SamplingLogic {
 		return prunedMatches;
 	}
 
-	/////// Experimental Stuff /////////////
+	/////// Experimental Stuff; still from SamplingLogic /////////////
 /*	
 	private float averageMatchSize = 0;
 	private int numMatches = 1;

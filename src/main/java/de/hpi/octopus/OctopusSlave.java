@@ -8,7 +8,7 @@ import akka.cluster.Cluster;
 import de.hpi.octopus.actors.Reaper;
 import de.hpi.octopus.actors.Storekeeper;
 import de.hpi.octopus.actors.slaves.Indexer;
-import de.hpi.octopus.actors.slaves.Validator;
+import de.hpi.octopus.actors.slaves.Worker;
 import de.hpi.octopus.configuration.Configuration;
 import de.hpi.octopus.configuration.ConfigurationSingleton;
 
@@ -36,7 +36,7 @@ public class OctopusSlave extends OctopusSystem {
 					ActorRef storekeeper = system.actorOf(Storekeeper.props(), Storekeeper.DEFAULT_NAME);
 					
 					for (int i = 0; i < c.getNumWorkers(); i++)
-						system.actorOf(Validator.props(storekeeper), Validator.DEFAULT_NAME + i);
+						system.actorOf(Worker.props(storekeeper), Worker.DEFAULT_NAME + i);
 				}
 			}
 		});

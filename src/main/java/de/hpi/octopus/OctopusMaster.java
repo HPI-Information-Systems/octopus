@@ -17,7 +17,7 @@ import de.hpi.octopus.actors.masters.Preprocessor;
 import de.hpi.octopus.actors.masters.Preprocessor.PreprocessingTaskMessage;
 import de.hpi.octopus.actors.masters.Profiler;
 import de.hpi.octopus.actors.slaves.Indexer;
-import de.hpi.octopus.actors.slaves.Validator;
+import de.hpi.octopus.actors.slaves.Worker;
 import de.hpi.octopus.configuration.Configuration;
 import de.hpi.octopus.configuration.ConfigurationSingleton;
 import scala.concurrent.Await;
@@ -52,7 +52,7 @@ public class OctopusMaster extends OctopusSystem {
 					ActorRef storekeeper = system.actorOf(Storekeeper.props(), Storekeeper.DEFAULT_NAME);
 				
 					for (int i = 0; i < c.getNumWorkers(); i++)
-						system.actorOf(Validator.props(storekeeper), Validator.DEFAULT_NAME + i);
+						system.actorOf(Worker.props(storekeeper), Worker.DEFAULT_NAME + i);
 				}
 				
 			//	ActorRef testActor1 = system.actorOf(TestActor.props(null), TestActor.DEFAULT_NAME + 1);

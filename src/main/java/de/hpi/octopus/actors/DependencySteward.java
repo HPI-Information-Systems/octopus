@@ -116,7 +116,8 @@ public class DependencySteward extends AbstractLoggingActor {
 		
 		// Prune the candidates from the FDTree and infer new candidates
 		for (BitSet invalidLhs : message.getInvalidLhss()) {
-			for (BitSet specLhs : this.fds.getLhsAndGeneralizations(invalidLhs)) {
+			for (BitSet generalLhs : this.fds.getLhsAndGeneralizations(invalidLhs)) {
+				BitSet specLhs = generalLhs.clone();
 				this.fds.removeLhs(specLhs);
 				
 				if ((this.maxDepth > 0) && (specLhs.cardinality() >= this.maxDepth))

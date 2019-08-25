@@ -10,7 +10,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
+import de.hpi.octopus.actors.slaves.Worker.ValidationMessage;
 import de.hpi.octopus.structures.BitSet;
 
 public class OctopusMessageSerializerTest {

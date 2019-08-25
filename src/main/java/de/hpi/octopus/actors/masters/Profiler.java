@@ -20,11 +20,11 @@ import de.hpi.octopus.actors.LargeMessageProxy.LargeMessage;
 import de.hpi.octopus.actors.Storekeeper.PlisMessage;
 import de.hpi.octopus.actors.listeners.ProgressListener;
 import de.hpi.octopus.actors.listeners.ProgressListener.FinishedMessage;
-import de.hpi.octopus.actors.slaves.Validator;
-import de.hpi.octopus.actors.slaves.Validator.AttributeFinishedMessage;
-import de.hpi.octopus.actors.slaves.Validator.SamplingMessage;
+import de.hpi.octopus.actors.slaves.Worker;
+import de.hpi.octopus.actors.slaves.Worker.AttributeFinishedMessage;
+import de.hpi.octopus.actors.slaves.Worker.SamplingMessage;
 import de.hpi.octopus.actors.slaves.AbstractSlave.TerminateMessage;
-import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
+import de.hpi.octopus.actors.slaves.Worker.ValidationMessage;
 import de.hpi.octopus.io.FileSink;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.Dataset;
@@ -107,9 +107,9 @@ public class Profiler extends AbstractMaster {
 
 	private Dataset dataset;
 
-	private Queue<ActorRef> idleValidators = new LinkedList<>();	// Idle: This validation branch is stopped here and pauses until a dependency steward becomes idle again.
-	private Queue<ActorRef> waitingValidators = new LinkedList<>();	// Waiting: This validation branch is collecting candidates and waits for them to come.
-	private Map<ActorRef, Object> busyValidators = new HashMap<>();	// Busy: This validation branch is working on a message.
+	private Queue<ActorRef> idleWorkers = new LinkedList<>();		// Idle: This working branch is stopped here and pauses until a dependency steward becomes idle again.
+	private Queue<ActorRef> waitingWorkers = new LinkedList<>();	// Waiting: This working branch is collecting candidates and waits for them to come.
+	private Map<ActorRef, Object> busyWorkers = new HashMap<>();	// Busy: This working branch is working on a message.
 	
 	private ActorRef[] dependencyStewards;							// List of non-finished dependency stewards
 	private DependencyStewardRing dependencyStewardRing;			// Ring of dependency stewards to find the next steward serving new validation tasks
@@ -164,38 +164,38 @@ public class Profiler extends AbstractMaster {
 				this.terminate();
 		}
 		
-		// If a validator terminates, we forget him and might need to reschedule his work
-		if (actorName.contains(Validator.DEFAULT_NAME)) {
-			this.idleValidators.remove(message.getActor());
-			this.waitingValidators.remove(message.getActor());
-			Object work = this.busyValidators.remove(message.getActor());
+		// If a worker terminates, we forget him and might need to reschedule his work
+		if (actorName.contains(Worker.DEFAULT_NAME)) {
+			this.idleWorkers.remove(message.getActor());
+			this.waitingWorkers.remove(message.getActor());
+			Object work = this.busyWorkers.remove(message.getActor());
 			
 			if (work != null) {
-				if (this.idleValidators.isEmpty()) {
+				if (this.idleWorkers.isEmpty()) {
 					this.unassignedWork.add(work);
 					return;
 				}
 				
-				ActorRef validator = this.idleValidators.poll();
-				this.busyValidators.put(validator, work);
-				validator.tell(work, this.self());
+				ActorRef worker = this.idleWorkers.poll();
+				this.busyWorkers.put(worker, work);
+				worker.tell(work, this.self());
 			}
 		}
 	}
 	
 	protected void terminate() {
 		this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
-		this.tellAllValidators(new TerminateMessage());
+		this.tellAllWorkers(new TerminateMessage());
 		this.log().info("Finished discovery task.");
 	}
 	
-	protected void tellAllValidators(final Object message) {
-		for (ActorRef validator : this.busyValidators.keySet())
-			validator.tell(message, ActorRef.noSender());
-		for (ActorRef validator : this.idleValidators)
-			validator.tell(message, ActorRef.noSender());
-		for (ActorRef validator : this.waitingValidators)
-			validator.tell(message, ActorRef.noSender());
+	protected void tellAllWorkers(final Object message) {
+		for (ActorRef worker : this.busyWorkers.keySet())
+			worker.tell(message, ActorRef.noSender());
+		for (ActorRef worker : this.idleWorkers)
+			worker.tell(message, ActorRef.noSender());
+		for (ActorRef worker : this.waitingWorkers)
+			worker.tell(message, ActorRef.noSender());
 	}
 	
 	protected void handle(DiscoveryTaskMessage message) throws Exception {
@@ -257,10 +257,10 @@ public class Profiler extends AbstractMaster {
 		if (this.children == 0)
 			this.terminate();
 		
-		// Assign initial work to all validators (if possible); because this.assign adds validators back to the idle list if no work is present, we poll each validator only once.
-		int numValidators = this.idleValidators.size();
-		for (int i = 0; i < numValidators; i++)
-			this.assign(this.idleValidators.poll());
+		// Assign initial work to all workers (if possible); because this.assign adds workers back to the idle list if no work is present, we poll each worker only once.
+		int numWorkers = this.idleWorkers.size();
+		for (int i = 0; i < numWorkers; i++)
+			this.assign(this.idleWorkers.poll());
 	}
 
 	private void handle(SendPlisMessage mesage) {
@@ -269,16 +269,16 @@ public class Profiler extends AbstractMaster {
 	}
 	
 	protected void handle(ValidationResultMessage validationResultMessage) {
-		final ActorRef validator = this.sender();
-		final ValidationMessage validationMessage = (ValidationMessage) this.busyValidators.remove(validator);
+		final ActorRef worker = this.sender();
+		final ValidationMessage validationMessage = (ValidationMessage) this.busyWorkers.remove(worker);
 
 		final int validationRequester = validationMessage.getRhs(); // Who asked for this validation
 		final BitSet[][] invalidLhss = validationResultMessage.getInvalidLhss();
 		final int[] invalidRhss = validationResultMessage.getInvalidRhss();
 		final int numCandidates = validationResultMessage.getNumCandidates();
 		
-		// Consider the current validator as idle; this is important, because if the profiling is done, we need to notify all validators that they can terminate
-		this.idleValidators.add(validator);
+		// Consider the current worker as idle; this is important, because if the profiling is done, we need to notify all workers that they can terminate
+		this.idleWorkers.add(worker);
 		
 		// Forward the validation results to the different dependency stewards
 		this.forwardInvalidFDs(validationRequester, true, invalidLhss, invalidRhss, numCandidates);
@@ -286,13 +286,13 @@ public class Profiler extends AbstractMaster {
 		// Check if the validation requester is done and, if true, finish that dependency steward; finish the discovery if done entirely
 		this.finishStewardIfDone(validationRequester);
 		
-		// Assign new work to the validator
-		this.assign(this.idleValidators.poll());
+		// Assign new work to the worker
+		this.assign(this.idleWorkers.poll());
 	}
 	
 	protected void handle(SamplingResultMessage samplingResultMessage) {
-		final ActorRef validator = this.sender();
-		final SamplingMessage samplingMessage = (SamplingMessage) this.busyValidators.remove(validator);
+		final ActorRef worker = this.sender();
+		final SamplingMessage samplingMessage = (SamplingMessage) this.busyWorkers.remove(worker);
 
 		final int attribute = samplingMessage.getAttribute();
 		final int distance = samplingMessage.getDistance();
@@ -316,8 +316,8 @@ public class Profiler extends AbstractMaster {
 		// Update all preferences to validation, because the sampling fulfills all sampling preferences for all dependency stewards whether or not they actually issued this sampling request or got an update from it; it is important to do so, because otherwise attributes might prefer sampling forever if they never get a sampling result
 		this.dependencyStewardRing.setValidation(true);
 		
-		// Assign new work to the validator
-		this.assign(validator);
+		// Assign new work to the worker
+		this.assign(worker);
 	}
 	
 	protected void forwardInvalidFDs(final int validationRequester, final boolean validation, final BitSet[][] invalidLhss, final int[] invalidRhss, final int numCandidates) {
@@ -349,9 +349,9 @@ public class Profiler extends AbstractMaster {
 		if (message.isUpdatePreference())
 			this.dependencyStewardRing.setValidation(message.getRhs(), message.isValidation());
 		
-		// If the dependency steward is idle now, we can assign work from this idle dependency steward to idle validators; because sending sampling tasks does not make this steward busy, we assign tasks until no more tasks could be assigned
+		// If the dependency steward is idle now, we can assign work from this idle dependency steward to idle worker; because sending sampling tasks does not make this steward busy, we assign tasks until no more tasks could be assigned
 		if (this.dependencyStewardRing.isIdle(message.getRhs()))
-			this.assignIdleValidators();
+			this.assignIdleWorkers();
 	}
 	
 	private void handle(CandidateMessage message) {
@@ -366,51 +366,51 @@ public class Profiler extends AbstractMaster {
 			this.finishStewardIfDone(message.getRhs());
 		}
 		
-		// Get the validator that is waiting for this candidate message
-		ActorRef validator = this.waitingValidators.poll();
+		// Get the worker that is waiting for this candidate message
+		ActorRef worker = this.waitingWorkers.poll();
 		
 		// Assign the validator to something else if the candidate message did not deliver candidates
-		if ((message.getLhss().length == 0) && (validator != null)) {
-			this.assign(validator);
+		if ((message.getLhss().length == 0) && (worker != null)) {
+			this.assign(worker);
 			return;
 		}
 		
 		// Create the validation message
 		ValidationMessage validationMessage = new ValidationMessage(message.getLhss(), message.getRhs());
 		
-		// If the validator terminated while the dependency steward was collecting candidates
-		if (validator == null) {
+		// If the worker terminated while the dependency steward was collecting candidates
+		if (worker == null) {
 			// Hold the validation message
 			this.unassignedWork.add(validationMessage);
 		}
 		else {
 			// Assign the candidates to the waiting validator
-			this.busyValidators.put(validator, validationMessage);
-			validator.tell(validationMessage, this.self());
+			this.busyWorkers.put(worker, validationMessage);
+			worker.tell(validationMessage, this.self());
 		}
 		
-		// If the dependency steward is idle now, we can assign work from this idle dependency steward to idle validators; because sending sampling tasks does not make this steward busy, we assign tasks until no more tasks could be assigned
+		// If the dependency steward is idle now, we can assign work from this idle dependency steward to idle workers; because sending sampling tasks does not make this steward busy, we assign tasks until no more tasks could be assigned
 		if (this.dependencyStewardRing.isIdle(message.getRhs()))
-			this.assignIdleValidators();
+			this.assignIdleWorkers();
 	}
 
-	private void assignIdleValidators() {
-		// Assign idle validators until there are either no more idle validators or we could not assign any further work
-		while (!this.idleValidators.isEmpty() && this.assign(this.idleValidators.poll())) {}
+	private void assignIdleWorkers() {
+		// Assign idle workers until there are either no more idle workers or we could not assign any further work
+		while (!this.idleWorkers.isEmpty() && this.assign(this.idleWorkers.poll())) {}
 	}
 	
-	private boolean assign(ActorRef validator) {
-		// Let the validator idle if no discovery task is present yet
+	private boolean assign(ActorRef worker) {
+		// Let the worker idle if no discovery task is present yet
 		if (this.dataset == null) {
-			this.idleValidators.add(validator);
+			this.idleWorkers.add(worker);
 			return false;
 		}
 		
 		// Assign work that is waiting for a worker
 		Object work = this.unassignedWork.poll();
 		if (work != null) {
-			validator.tell(work, this.self());
-			this.busyValidators.put(validator, work);
+			worker.tell(work, this.self());
+			this.busyWorkers.put(worker, work);
 			return true;
 		}
 		
@@ -421,8 +421,8 @@ public class Profiler extends AbstractMaster {
 			this.prioritizedSamplingEfficiencies.add(samplingEfficiency);
 			
 			SamplingMessage samplingMessage = new SamplingMessage(samplingEfficiency.getAttribute(), distance);
-			validator.tell(samplingMessage, this.self());
-			this.busyValidators.put(validator, samplingMessage);
+			worker.tell(samplingMessage, this.self());
+			this.busyWorkers.put(worker, samplingMessage);
 			return true;
 		}
 		
@@ -432,7 +432,7 @@ public class Profiler extends AbstractMaster {
 			this.dependencyStewardRing.increaseBusy(attribute);
 			this.dependencyStewards[attribute].tell(new CandidateRequestMessage(), this.self());
 			
-			this.waitingValidators.add(validator);
+			this.waitingWorkers.add(worker);
 			return true;
 		}
 		
@@ -453,13 +453,13 @@ public class Profiler extends AbstractMaster {
 			this.prioritizedSamplingEfficiencies.add(samplingEfficiency);
 			
 			SamplingMessage samplingMessage = new SamplingMessage(samplingEfficiency.getAttribute(), distance);
-			validator.tell(samplingMessage, this.self());
-			this.busyValidators.put(validator, samplingMessage);
+			worker.tell(samplingMessage, this.self());
+			this.busyWorkers.put(worker, samplingMessage);
 			return true;
 		}
 		
-		// Let the validator idle if all dependency stewards are busy (i.e., we apply backpressure to not exhaust the profiler and its dependency stewards)
-		this.idleValidators.add(validator);
+		// Let the worker idle if all dependency stewards are busy (i.e., we apply backpressure to not exhaust the profiler and its dependency stewards)
+		this.idleWorkers.add(worker);
 		return false;
 	}
 
@@ -479,7 +479,7 @@ public class Profiler extends AbstractMaster {
 		
 		// Tell all workers that we can ignore this rhs attribute now, i.e., they do not need to send non-FDs with this rhs
 		final AttributeFinishedMessage attributeFinishedMessage = new AttributeFinishedMessage(stewardAttribute);
-		this.tellAllValidators(attributeFinishedMessage);
+		this.tellAllWorkers(attributeFinishedMessage);
 		
 /*		System.out.println("Done " + stewardAttribute);
 		for (int i = 0; i < this.dataset.getNumAtrributes(); i++)
@@ -528,8 +528,8 @@ public class Profiler extends AbstractMaster {
 		if (this.dependencyStewardRing.isBusy(attribute))
 			return false;
 		
-		// Check if any validator is validating candidates from the dependency steward
-		for (Object task : this.busyValidators.values())
+		// Check if any worker is validating candidates from the dependency steward
+		for (Object task : this.busyWorkers.values())
 			if ((task instanceof ValidationMessage) && ((ValidationMessage) task).getRhs() == attribute)
 				return false;
 		

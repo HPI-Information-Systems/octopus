@@ -10,7 +10,7 @@ import com.twitter.chill.KryoPool;
 import akka.actor.ActorSystem;
 import akka.serialization.Serialization;
 import akka.serialization.SerializationExtension;
-import de.hpi.octopus.actors.slaves.Validator;
+import de.hpi.octopus.actors.slaves.Worker;
 import de.hpi.octopus.serialization.OctopusMessageSerializer;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.KryoPoolSingleton;
@@ -26,7 +26,7 @@ public class Test {
 			for (int j = 0; j < 25; j++)
 				bitsets[i].set(j);
 		}
-		Validator.ValidationMessage message = new Validator.ValidationMessage(bitsets, 8);
+		Worker.ValidationMessage message = new Worker.ValidationMessage(bitsets, 8);
 		
 		int POOL_SIZE = 10;
 		KryoPool kryo = KryoPool.withByteArrayOutputStream(POOL_SIZE, new KryoInstantiator());
@@ -45,7 +45,7 @@ public class Test {
 		byte[] ser3 = kryo.toBytesWithClass(o);
 		Object deserO = kryo.fromBytes(ser);
 		
-		System.out.println(deserO instanceof Validator.ValidationMessage);
+		System.out.println(deserO instanceof Worker.ValidationMessage);
 		
 		System.out.println(Arrays.copyOfRange(ser, 0, 0).length);
 		System.out.println(Arrays.copyOfRange(ser, 2, 2).length);

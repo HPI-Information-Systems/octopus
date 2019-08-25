@@ -5,7 +5,7 @@ import java.nio.ByteBuffer;
 
 import akka.serialization.ByteBufferSerializer;
 import akka.serialization.SerializerWithStringManifest;
-import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
+import de.hpi.octopus.actors.slaves.Worker.ValidationMessage;
 import de.hpi.octopus.structures.BitSet;
 
 public class OctopusMessageSerializer extends SerializerWithStringManifest implements ByteBufferSerializer {

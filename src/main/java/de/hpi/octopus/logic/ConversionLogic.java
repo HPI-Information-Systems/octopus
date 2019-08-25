@@ -1,15 +1,11 @@
 package de.hpi.octopus.logic;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 
-import de.hpi.octopus.actors.masters.Profiler.SamplingResultMessage;
-import de.hpi.octopus.actors.masters.Profiler.ValidationResultMessage;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.FunctionalDependency;
-import it.unimi.dsi.fastutil.ints.IntArrayList;
-import it.unimi.dsi.fastutil.ints.IntList;
 
 public class ConversionLogic {
 
@@ -42,65 +38,37 @@ public class ConversionLogic {
 		return array;
 	}
 	
-	public static ValidationResultMessage fds2ValidationResultMessage(List<FunctionalDependency> invalidFDs, int rhs, int numCandidates) {
-		Collections.sort(invalidFDs);
-		
-		List<BitSet[]> invalidLhss = new ArrayList<>();
-		IntList invalidRhss = new IntArrayList();
-		int i = 0;
-		while (i < invalidFDs.size()) {
-			int currentRhs = invalidFDs.get(i).getRhs();
+/*	public static int[] bitset2Array(final BitSet bitSet) {
+		//BitSet bitSet = bitSetIn.clone();
+		int[] array = new int[bitSet.cardinality()];
+		int last = 0;
+		try {
+			try {
+				Thread.sleep(1);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			for (int trueBit = bitSet.nextSetBit(0), index = 0; trueBit >= 0; trueBit = bitSet.nextSetBit(trueBit + 1), index++) {
+				last = trueBit;
+				array[index] = trueBit;
+			}
+		} catch (java.lang.ArrayIndexOutOfBoundsException e) {
+			System.out.println(array.length);
+			System.out.println(bitSet.cardinality());
+			System.out.println(last);
+			System.out.println(Arrays.toString(array));
 			
-			int j = i + 1;
-			while ((j < invalidFDs.size()) && (invalidFDs.get(j).getRhs() == invalidFDs.get(i).getRhs()))
-				j++;
-			
-			BitSet[] currentLhss = new BitSet[j - i];
-			for (int k = 0, l = i; l < j; k++, l++)
-				currentLhss[k] = invalidFDs.get(l).getLhs();
-			
-			invalidLhss.add(currentLhss);
-			invalidRhss.add(currentRhs);
-			
-			i = j;
+			System.out.println(Arrays.toString(bitset2Array(bitSet)));
+			System.out.println(Arrays.toString(bitset2Array(bitSet)));
+			System.out.println(Arrays.toString(bitset2Array(bitSet)));
+			System.out.println(Arrays.toString(bitset2Array(bitSet)));
+			System.out.println(Arrays.toString(bitset2Array(bitSet)));
+			throw e;
 		}
-		
-		return new ValidationResultMessage(
-				invalidLhss.toArray(new BitSet[invalidRhss.size()][]), 
-				invalidRhss.toArray(new int[invalidRhss.size()]),
-				numCandidates);
+		return array;
 	}
-	
-	public static SamplingResultMessage fds2SamplingResultMessage(List<FunctionalDependency> invalidFDs, int numComparisons, int numMatches) {
-		Collections.sort(invalidFDs);
-		
-		List<BitSet[]> invalidLhss = new ArrayList<>();
-		IntList invalidRhss = new IntArrayList();
-		int i = 0;
-		while (i < invalidFDs.size()) {
-			int currentRhs = invalidFDs.get(i).getRhs();
-			
-			int j = i + 1;
-			while ((j < invalidFDs.size()) && (invalidFDs.get(j).getRhs() == invalidFDs.get(i).getRhs()))
-				j++;
-			
-			BitSet[] currentLhss = new BitSet[j - i];
-			for (int k = 0, l = i; l < j; k++, l++)
-				currentLhss[k] = invalidFDs.get(l).getLhs();
-			
-			invalidLhss.add(currentLhss);
-			invalidRhss.add(currentRhs);
-			
-			i = j;
-		}
-		
-		return new SamplingResultMessage(
-				invalidLhss.toArray(new BitSet[invalidRhss.size()][]), 
-				invalidRhss.toArray(new int[invalidRhss.size()]),
-				numComparisons,
-				numMatches);
-	}
-
+*/	
 	public static String pli2String(int[][] pli) {
 		StringBuffer buffer = new StringBuffer("[");
 		int maxC = 5;

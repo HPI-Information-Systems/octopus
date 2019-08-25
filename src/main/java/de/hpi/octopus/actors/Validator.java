@@ -1,54 +1,104 @@
-package de.hpi.octopus.logic;
+package de.hpi.octopus.actors;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import akka.event.LoggingAdapter;
-import de.hpi.octopus.actors.masters.Profiler.ValidationResultMessage;
-import de.hpi.octopus.actors.slaves.Validator.ValidationMessage;
+import akka.actor.AbstractLoggingActor;
+import akka.actor.ActorRef;
+import akka.actor.Props;
+import de.hpi.octopus.actors.FilterManipulator.AddAllMessage;
+import de.hpi.octopus.actors.slaves.Worker.DetailedValidationResultMessage;
+import de.hpi.octopus.actors.slaves.Worker.ValidationMessage;
 import de.hpi.octopus.configuration.ConfigurationSingleton;
+import de.hpi.octopus.logic.ConversionLogic;
+import de.hpi.octopus.logic.MatchingLogic;
 import de.hpi.octopus.structures.BitSet;
-import de.hpi.octopus.structures.BloomFilter;
 import de.hpi.octopus.structures.FunctionalDependency;
 import de.hpi.octopus.structures.PliCache;
 import de.hpi.octopus.structures.ValueCombination;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 
-public class ValidationLogic {
+public class Validator extends AbstractLoggingActor {
+
+	////////////////////////
+	// Actor Construction //
+	////////////////////////
+	
+	public static final String DEFAULT_NAME = "validator";
+
+	public static Props props(final int[][] records, final int[][][] plis, final PliCache pliCache, final ActorRef filterManipulator) {
+		return Props.create(Validator.class, () -> new Validator(records, plis, pliCache, filterManipulator));
+	}
+
+	public Validator(final int[][] records, final int[][][] plis, final PliCache pliCache, final ActorRef filterManipulator) {
+		this.records = records;
+		this.plis = plis;
+		this.pliCache = pliCache;
+		this.pliCachePrefixLength = ConfigurationSingleton.get().getPliCachePrefixLength();
+		this.validationSmallClusterSize = ConfigurationSingleton.get().getValidationSmallClusterSize();
+		this.filterManipulator = filterManipulator;
+	}
+
+	////////////////////
+	// Actor Messages //
+	////////////////////
+
+	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	public static class DetailedValidationMessage implements Serializable {
+		private static final long serialVersionUID = -2470645794925505836L;
+		private DetailedValidationMessage() {}
+		public DetailedValidationMessage(final ValidationMessage message, final boolean[] finishedRhsAttributes) {
+			this.lhss = message.getLhss();
+			this.rhs = message.getRhs();
+			this.finishedRhsAttributes = finishedRhsAttributes;
+		}
+		private BitSet[] lhss;
+		private int rhs;
+		private boolean[] finishedRhsAttributes;
+	}
+	
+	/////////////////
+	// Actor State //
+	/////////////////
 
 	private final int[][] records;
 	private final int[][][] plis;
 	private final PliCache pliCache;
 	private final int pliCachePrefixLength;
 	private final int validationSmallClusterSize;
-	private final BloomFilter filter;
-	private final boolean[] finishedRhsAttributes;
+	private final ActorRef filterManipulator;
 	
-	@SuppressWarnings("unused")
-	private final LoggingAdapter log;
-	
-	public ValidationLogic(final int[][] records, final int[][][] plis, final PliCache pliCache, final BloomFilter filter, final boolean[] finishedRhsAttributes, final LoggingAdapter log) {
-		this.records = records;
-		this.plis = plis;
-		this.pliCache = pliCache;
-		this.pliCachePrefixLength = ConfigurationSingleton.get().getPliCachePrefixLength();
-		this.validationSmallClusterSize = ConfigurationSingleton.get().getValidationSmallClusterSize();
-		this.filter = filter;
-		this.finishedRhsAttributes = finishedRhsAttributes;
-		this.log = log;
+	/////////////////////
+	// Actor Lifecycle //
+	/////////////////////
+
+	////////////////////
+	// Actor Behavior //
+	////////////////////
+
+	@Override
+	public Receive createReceive() {
+		return receiveBuilder()
+				.match(DetailedValidationMessage.class, this::handle)
+				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
+				.build();
 	}
 
-	public ValidationResultMessage process(ValidationMessage message) {
+	protected void handle(DetailedValidationMessage message) {
 		// Initialize a container for the invalid FDs
 		List<FunctionalDependency> invalidFDs = new ArrayList<>(message.getLhss().length);
 		
 		// Process the validation message		
 		int rhs = message.getRhs();
+		List<BitSet> matches = new ArrayList<>(message.getLhss().length);
 		for (BitSet lhsBitSet : message.getLhss()) { // The lhs should have at least one attribute
 			int[] lhs = ConversionLogic.bitset2Array(lhsBitSet);
 			
@@ -61,24 +111,21 @@ public class ValidationLogic {
 		//	invalidFDs.add(new FunctionalDependency(lhsBitSet, rhs)); // Not necessary, because we compare the two records and find and add this non-FD again 
 			
 			// Compare the two records that caused the violation to find violations for other FDs (= execute comparison suggestion)
-			BitSet invalidLhs = new BitSet(this.plis.length);
-			for (int attribute = 0; attribute < this.plis.length; attribute++)
-				if (MatchingLogic.isMatch(this.records[violation[0]], this.records[violation[1]], attribute))
-					invalidLhs.set(attribute);
-			
-			// Add the comparison result to the filter so that we do not report the same result again during sampling
-			this.filter.add(invalidLhs);
-			
-			// Derive the fds from the match
-			for (int invalidRhs = 0; invalidRhs < this.plis.length; invalidRhs++)
-				if (!invalidLhs.get(invalidRhs) && !this.finishedRhsAttributes[invalidRhs])
-					invalidFDs.add(new FunctionalDependency(invalidLhs, invalidRhs));
+			matches.add(MatchingLogic.match(this.records[violation[0]], this.records[violation[1]]));
 		}
+
+		// Send the matches to the filterManipulator to add the comparison result to the filter so that we do not report the same result again during sampling
+		if (!matches.isEmpty())
+			this.filterManipulator.tell(new AddAllMessage(matches), this.self());
+		
+		// Derive the fds from the match results
+		for (BitSet invalidLhs : matches)
+			for (int invalidRhs = 0; invalidRhs < this.plis.length; invalidRhs++)
+				if (!invalidLhs.get(invalidRhs) && !message.getFinishedRhsAttributes()[invalidRhs])
+					invalidFDs.add(new FunctionalDependency(invalidLhs, invalidRhs));
 		
 		// Send the result to the sender of the validation message
-		final ValidationResultMessage validationMessage = ConversionLogic.fds2ValidationResultMessage(invalidFDs, rhs, message.getLhss().length);
-		
-		return validationMessage;
+		this.sender().tell(new DetailedValidationResultMessage(invalidFDs, message.getLhss().length), this.self());
 	}
 	
 	// validationSmallClusterSize (for ncvoter_Statewide_10001r_71c):
@@ -227,6 +274,12 @@ public class ValidationLogic {
 		final int originalNumClusters = originalPli.length;
 		final int reducedNumClusters = reducedPli.length;
 		
+		if (originalNumClusters == 0)
+			return 0;
+		
+		if (reducedNumClusters == 0)
+			return 1;
+		
 		int originalNumClusterRecords = 0;
 		for (int i = 0; i < originalPli.length; i++)
 			originalNumClusterRecords += originalPli[i].length;
@@ -243,4 +296,5 @@ public class ValidationLogic {
 		double reducedRecordsPerCluster = originalNumClusterRecords / (reducedNumClusters + (originalNumClusterRecords - reducedNumClusterRecords)); // The same records from before are now in the reducedNumClusters + the new clusters of size 1
 		return reducedRecordsPerCluster / originalRecordsPerCluster;
 	}
+	
 }
