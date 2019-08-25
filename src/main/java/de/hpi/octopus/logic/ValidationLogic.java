@@ -113,8 +113,10 @@ public class ValidationLogic {
 	// Found 169316 FDs in 20979 ms
 	//
 	// pliCachePrefixLength (for ncvoter_Statewide_10001r_71c):
-	// With reduction sensitive cache, i.e., only cache if average cluster size decreases by at least 50% (blacklisting)
+	// With reduction sensitive cache, i.e., only cache if average cluster size decreases to at least 50% (blacklisting)
 	// Found 169316 FDs in 17844 ms
+	// With reduction sensitive cache, i.e., only cache if average cluster size decreases to at least 80% (blacklisting)
+	// Found 169316 FDs in 15480 ms
 	private int[] findViolationCached(int[] lhs, int rhs) {
 		// Find a small pli to start with in the cache; create it if necessary
 		int[][] pivotPli = this.plis[lhs[0]];
@@ -133,7 +135,7 @@ public class ValidationLogic {
 				cachedPli = this.intersect(pivotPli, lhs[i - 1]);
 				
 				// Assess the reduction factor and depending on the factor, either chache or blacklist
-				if (this.calculateReduction(pivotPli, cachedPli) < 0.5f) {
+				if (this.calculateReduction(pivotPli, cachedPli) < 0.8f) {
 					this.pliCache.add(prefix, cachedPli);
 				}
 				else {
