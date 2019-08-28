@@ -1,5 +1,8 @@
 package de.hpi.octopus.structures;
 
+import lombok.Getter;
+
+@Getter
 public class PliCacheElement {
 
 	private int[][] pli;
@@ -11,19 +14,9 @@ public class PliCacheElement {
 		this.blacklisted = false;
 	}
 	
-	public boolean isBlacklisted(final int[] attributes, final int childIndex) {
+	public PliCacheElement get(final int[] attributes, final int childIndex) {
 		if (childIndex == attributes.length)
-			return this.blacklisted;
-		
-		if ((this.children == null) || (this.children[attributes[childIndex]] == null))
-			return this.blacklisted;
-		
-		return this.children[attributes[childIndex]].isBlacklisted(attributes, childIndex + 1);
-	}
-	
-	public int[][] get(final int[] attributes, final int childIndex) {
-		if (childIndex == attributes.length)
-			return this.pli;
+			return this;
 		
 		if ((this.children == null) || (this.children[attributes[childIndex]] == null))
 			return null;

@@ -11,6 +11,7 @@ import akka.actor.AbstractLoggingActor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
 import de.hpi.octopus.actors.FilterManipulator.AddAllMessage;
+import de.hpi.octopus.actors.PliCacheManipulator.UpdateCacheMessage;
 import de.hpi.octopus.actors.slaves.Worker.DetailedValidationResultMessage;
 import de.hpi.octopus.actors.slaves.Worker.ValidationMessage;
 import de.hpi.octopus.configuration.ConfigurationSingleton;
@@ -19,6 +20,7 @@ import de.hpi.octopus.logic.MatchingLogic;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.FunctionalDependency;
 import de.hpi.octopus.structures.PliCache;
+import de.hpi.octopus.structures.PliCacheElement;
 import de.hpi.octopus.structures.ValueCombination;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
@@ -65,6 +67,11 @@ public class Validator extends AbstractLoggingActor {
 		private int rhs;
 		private boolean[] finishedRhsAttributes;
 	}
+
+	@Data @AllArgsConstructor
+	public static class CacheUpdatedMessage implements Serializable {
+		private static final long serialVersionUID = 4154638604842955833L;
+	}
 	
 	/////////////////
 	// Actor State //
@@ -78,6 +85,10 @@ public class Validator extends AbstractLoggingActor {
 	private final int validationSmallClusterSize;
 	private final ActorRef filterManipulator;
 	
+	private UpdateCacheMessage updateCacheMessage;
+	private DetailedValidationMessage detailedValidationMessage;
+	private ActorRef detailedValidationMessageSender;
+	
 	/////////////////////
 	// Actor Lifecycle //
 	/////////////////////
@@ -90,13 +101,41 @@ public class Validator extends AbstractLoggingActor {
 	public Receive createReceive() {
 		return receiveBuilder()
 				.match(DetailedValidationMessage.class, this::handle)
+				.match(CacheUpdatedMessage.class, this::handle)
 				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
 				.build();
 	}
 
 	protected void handle(DetailedValidationMessage message) {
+		// Wait processing this message if there is still some pending cache update (if we do not wait for cache updates, the updates could accumulate and exhaust either the memory or the pliCacheManipulator's mail box)
+		if (this.updateCacheMessage != null) {
+			this.detailedValidationMessage = message;
+			this.detailedValidationMessageSender = this.sender();
+			return;
+		}
+		
+		// Process the message
+		this.process(message, this.sender());
+	}
+
+	protected void handle(CacheUpdatedMessage message) {
+		// Mark update as completed
+		this.updateCacheMessage = null;
+		
+		// Process the pending validation message if one exists
+		if (this.detailedValidationMessage != null) {
+			this.process(this.detailedValidationMessage, this.detailedValidationMessageSender);
+			this.detailedValidationMessage = null;
+			this.detailedValidationMessageSender = null;
+		}
+	}
+	
+	protected void process(DetailedValidationMessage message, ActorRef sender) {
 		// Initialize a container for the invalid FDs
 		List<FunctionalDependency> invalidFDs = new ArrayList<>(message.getLhss().length);
+		
+		// Initialize containers for the data that should be cached
+		this.updateCacheMessage = new UpdateCacheMessage(new ArrayList<>(message.getLhss().length), new ArrayList<>(message.getLhss().length), new ArrayList<>(message.getLhss().length));
 		
 		// Process the validation message		
 		int rhs = message.getRhs();
@@ -104,8 +143,7 @@ public class Validator extends AbstractLoggingActor {
 		for (BitSet lhsBitSet : message.getLhss()) { // The lhs should have at least one attribute
 			int[] lhs = ConversionLogic.bitset2Array(lhsBitSet);
 			
-//			int[] violation = this.findViolation(lhs, rhs);
-			int[] violation = this.findViolationCached(lhs, rhs);
+			int[] violation = this.findViolation(lhs, rhs);
 			if (violation == null)
 				continue;
 			
@@ -120,6 +158,12 @@ public class Validator extends AbstractLoggingActor {
 		if (!matches.isEmpty())
 			this.filterManipulator.tell(new AddAllMessage(matches), this.self());
 		
+		// Send the data for the cache to the pliCacheManipulator
+		if (!this.updateCacheMessage.isEmpty())
+			this.pliCacheManipulator.tell(this.updateCacheMessage, this.self());
+		else
+			this.updateCacheMessage = null;
+		
 		// Derive the fds from the match results
 		for (BitSet invalidLhs : matches)
 			for (int invalidRhs = 0; invalidRhs < this.plis.length; invalidRhs++)
@@ -127,7 +171,7 @@ public class Validator extends AbstractLoggingActor {
 					invalidFDs.add(new FunctionalDependency(invalidLhs, invalidRhs));
 		
 		// Send the result to the sender of the validation message
-		this.sender().tell(new DetailedValidationResultMessage(invalidFDs, message.getLhss().length), this.self());
+		sender.tell(new DetailedValidationResultMessage(invalidFDs, message.getLhss().length), this.self());
 	}
 	
 	// validationSmallClusterSize (for ncvoter_Statewide_10001r_71c):
@@ -166,35 +210,11 @@ public class Validator extends AbstractLoggingActor {
 	// Found 169316 FDs in 17844 ms
 	// With reduction sensitive cache, i.e., only cache if average cluster size decreases to at least 80% (blacklisting)
 	// Found 169316 FDs in 15480 ms
-	private int[] findViolationCached(int[] lhs, int rhs) {
+	private int[] findViolation(int[] lhs, int rhs) {
 		// Find a small pli to start with in the cache; create it if necessary
-		int[][] pivotPli = this.plis[lhs[0]];
-		for (int i = 2; (i <= lhs.length) && (i <= this.pliCachePrefixLength); i++) {
-			int[] prefix = Arrays.copyOf(lhs, i);
-			
-			// Check if pivotPli is blacklisted and break pli search if it is
-			if (this.pliCache.isBlacklisted(prefix))
-				break;
-			
-			// Try to take the pivotPli from the cache
-			int[][] cachedPli = this.pliCache.get(prefix);
-			
-			// If the cache does not contain the intersection of the first pliCachePrefixLength attributes, create it and add it
-			if (cachedPli == null) {
-				cachedPli = this.intersect(pivotPli, lhs[i - 1]);
-				
-				// Assess the reduction factor and depending on the factor, either chache or blacklist
-				if (this.calculateReduction(pivotPli, cachedPli) < 0.8f) {
-					this.pliCache.add(prefix, cachedPli); // TODO: use this.pliCacheManipulator
-				}
-				else {
-					this.pliCache.blacklist(prefix); // TODO: use this.pliCacheManipulator
-					break;
-				}
-			}
-			pivotPli = cachedPli;
-		}
+		int[][] pivotPli = this.getPivotPliWithCache(lhs);
 		
+		// Violate the FD with the small pli
 		for (int[] cluster : pivotPli) {
 			if (cluster.length < this.validationSmallClusterSize) { // For small clusters, compare all records directly without hashing
 				for (int i = 0; i < cluster.length - 1; i++) {
@@ -243,6 +263,42 @@ public class Validator extends AbstractLoggingActor {
 		return null;
 	}
 	
+	private int[][] getPivotPliWithCache(int[] lhs) {
+		// Find a small pli to start with in the cache; create it if necessary
+		int[][] pivotPli = this.plis[lhs[0]];
+		for (int i = 2; (i <= lhs.length) && (i <= this.pliCachePrefixLength); i++) {
+			int[] prefix = Arrays.copyOf(lhs, i);
+			
+			// Try to take the pivotPli from the cache
+			PliCacheElement pliCacheElement = this.pliCache.get(prefix);
+
+			// Break if pivotPli is blacklisted
+			if (pliCacheElement != null && pliCacheElement.isBlacklisted())
+				break;
+			
+			// Continue if privotPli was found in the cache
+			if (pliCacheElement != null) {
+				pivotPli = pliCacheElement.getPli();
+				continue;
+			}
+			
+			// Create the intersectionPli as the intersection of the first pliCachePrefixLength attributes
+			int[][] intersectionPli = this.intersect(pivotPli, lhs[i - 1]);
+			
+			// Cache or blacklist the intersected pli depending on its reduction 
+			if (this.pliCache.isWorthCaching(intersectionPli, prefix, pivotPli)) {
+				this.updateCacheMessage.addPli(intersectionPli, prefix);
+				pivotPli = intersectionPli;
+			}
+			else {
+				this.updateCacheMessage.addBlacklist(prefix);
+				pivotPli = intersectionPli;
+				break;
+			}
+		}
+		return pivotPli;
+	}
+	
 	private int[][] intersect(int[][] pli, int attribute) {
 		List<IntList> clusters = new ArrayList<>(pli.length);
 		
@@ -270,33 +326,6 @@ public class Validator extends AbstractLoggingActor {
 			intersectedPli[i] = clusters.get(i).toIntArray();
 		
 		return intersectedPli;
-	}
-	
-	private double calculateReduction(int[][] originalPli, int[][] reducedPli) {
-		final int originalNumClusters = originalPli.length;
-		final int reducedNumClusters = reducedPli.length;
-		
-		if (originalNumClusters == 0)
-			return 0;
-		
-		if (reducedNumClusters == 0)
-			return 1;
-		
-		int originalNumClusterRecords = 0;
-		for (int i = 0; i < originalPli.length; i++)
-			originalNumClusterRecords += originalPli[i].length;
-		
-		int reducedNumClusterRecords = 0;
-		for (int i = 0; i < reducedPli.length; i++)
-			reducedNumClusterRecords += reducedPli[i].length;
-		
-		// Option 1: reduction based on number of records
-	//	return (float) reducedNumClusterRecords / (float) originalNumClusterRecords;
-		
-		// Option 2: reduction based on numbers per cluster
-		double originalRecordsPerCluster = originalNumClusterRecords / originalNumClusters;
-		double reducedRecordsPerCluster = originalNumClusterRecords / (reducedNumClusters + (originalNumClusterRecords - reducedNumClusterRecords)); // The same records from before are now in the reducedNumClusters + the new clusters of size 1
-		return reducedRecordsPerCluster / originalRecordsPerCluster;
 	}
 	
 }
