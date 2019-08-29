@@ -56,6 +56,9 @@ public class Configuration {
 		this.bufferSize = commandMaster.bufferSize;
 		this.maxMessageSize = commandMaster.maxMessageSize;
 		this.validationThreshold = commandMaster.validationThreshold;
+		this.maxCandidatesPerRequest = commandMaster.maxCandidatesPerRequest;
+		this.pliCachePrefixLength = commandMaster.pliCachePrefixLength;
+		this.validationSmallClusterSize = commandMaster.validationSmallClusterSize;
 	}
 
 	public void update(CommandSlave commandSlave) {
@@ -65,5 +68,7 @@ public class Configuration {
 		this.masterPort = commandSlave.masterport;
 		this.numWorkers = commandSlave.numWorkers;
 		this.maxMessageSize = commandSlave.maxMessageSize;
+		this.pliCachePrefixLength = commandSlave.pliCachePrefixLength;
+		this.validationSmallClusterSize = commandSlave.validationSmallClusterSize;
 	}
 }

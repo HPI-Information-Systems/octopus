@@ -266,6 +266,7 @@ public class Validator extends AbstractLoggingActor {
 	private int[][] getPivotPliWithCache(int[] lhs) {
 		// Find a small pli to start with in the cache; create it if necessary
 		int[][] pivotPli = this.plis[lhs[0]];
+		
 		for (int i = 2; (i <= lhs.length) && (i <= this.pliCachePrefixLength); i++) {
 			int[] prefix = Arrays.copyOf(lhs, i);
 			

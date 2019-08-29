@@ -17,10 +17,4 @@ public class CommandSlave extends Command {
 	@Parameter(names = { "-mp", "--masterport" }, description = "The port of the master", required = false)
 	int masterport = Configuration.DEFAULT_MASTER_PORT;
 
-	@Parameter(names = { "-pcpl", "--pliCachePrefixLength" }, description = "The maximum number of lhs prefix attributes for which the FD candidate validation should calculate and cache intermediate plis; e.g. for prefix 3 and candidate ABCD->E, we calculate the plis for A, AB, and ABC, cache them and use ABC for validation", required = false)
-	int pliCachePrefixLength = ConfigurationSingleton.get().getPliCachePrefixLength();
-	
-	@Parameter(names = { "-vscs", "--validationSmallClusterSize" }, description = "The maximum size of pli clusters that are validated (i.e. intersected) via nested-loops; larger clusters use hash-maps for validation", required = false)
-	int validationSmallClusterSize = ConfigurationSingleton.get().getPliCachePrefixLength();
-	
 }
