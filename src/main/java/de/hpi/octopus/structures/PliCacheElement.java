@@ -141,7 +141,7 @@ public class PliCacheElement {
 		final int readsSize = 4;
 		final int byteSizeSize = 8;
 		
-		return roundToMultipleOfEight(12 + pliSize + childrenSize + readsSize + byteSizeSize) * 10;
+		return roundToMultipleOfEight(12 + pliSize + childrenSize + readsSize + byteSizeSize);
 	}
 	
 	private static long sizeIntArrayOf(final int length) {
