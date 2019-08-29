@@ -1,6 +1,7 @@
 package de.hpi.octopus.actors;
 
 import java.io.Serializable;
+import java.lang.management.ManagementFactory;
 import java.util.List;
 
 import akka.actor.AbstractLoggingActor;
@@ -24,6 +25,14 @@ public class PliCacheManipulator extends AbstractLoggingActor {
 
 	public PliCacheManipulator(final PliCache cache) {
 		this.cache = cache;
+
+		Runtime.getRuntime().gc();
+		
+		long maxMemory = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getMax();
+		long usedMemory = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed();
+		
+		this.maxCacheSize = (long) (0.5 * (maxMemory - usedMemory)); // TODO: parameter? use fix 50% of available memory for cache?
+		this.pruneCacheSize = (long) (this.maxCacheSize * 0.8f); // TODO: parameter?
 	}
 
 	////////////////////
@@ -55,6 +64,9 @@ public class PliCacheManipulator extends AbstractLoggingActor {
 
 	private volatile PliCache cache;
 	
+	private long maxCacheSize;
+	private long pruneCacheSize;
+	
 	/////////////////////
 	// Actor Lifecycle //
 	/////////////////////
@@ -73,7 +85,10 @@ public class PliCacheManipulator extends AbstractLoggingActor {
 
 	protected void handle(UpdateCacheMessage message) {
 		// Check memory consumption and remove plis from the cache if memory is exhausted
-			// TODO
+		if (this.cache.getByteSize() > this.maxCacheSize) {
+			this.log().info("Pruning pli cache from {} byte, which is over the maximum of {} byte, to under {} byte.", this.cache.getByteSize(), this.maxCacheSize, this.pruneCacheSize);
+			this.cache.prune(this.pruneCacheSize);
+		}
 		
 		// Add new plis
 		for (int i = 0; i < message.getPlis().size(); i++)
@@ -83,6 +98,12 @@ public class PliCacheManipulator extends AbstractLoggingActor {
 		for (int i = 0; i < message.getBlacklistAttributes().size(); i++)
 			this.cache.blacklist(message.getBlacklistAttributes().get(i));
 		
+		// Check memory consumption again and remove the just inserted plis from the cache if memory they exhausted the memory; this is usually not the case, but if the algorithm is fighting for memory, it needs to be done
+		if (this.cache.getByteSize() > this.maxCacheSize) {
+			this.log().info("Pruning pli cache from {} byte, which is over the maximum of {} byte, to under {} byte.", this.cache.getByteSize(), this.maxCacheSize, this.pruneCacheSize);
+			this.cache.prune(this.pruneCacheSize);
+		}
+
 		// Reset the cache reference to make its elements effectively volatile
 		this.cache = this.cache;
 		

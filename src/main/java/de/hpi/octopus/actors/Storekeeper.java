@@ -69,7 +69,7 @@ public class Storekeeper extends AbstractLoggingActor {
 	private BloomFilter filter;
 	private ActorRef filterManipulator;
 
-	private final List<ActorRef> waitingValidators = new ArrayList<>();
+	private final List<ActorRef> waitingWorkers = new ArrayList<>();
 	
 	/////////////////////
 	// Actor Lifecycle //
@@ -129,11 +129,11 @@ public class Storekeeper extends AbstractLoggingActor {
 		}
 		
 		// If the data has not yet been requested, send data request
-		if (this.waitingValidators.isEmpty())
+		if (this.waitingWorkers.isEmpty())
 			this.profiler.tell(new SendPlisMessage(), this.self());
 		
 		// Put the sender of the current request to the waiting list
-		this.waitingValidators.add(this.sender());
+		this.waitingWorkers.add(this.sender());
 	}
 
 	private void handle(PlisMessage message) {
@@ -141,20 +141,18 @@ public class Storekeeper extends AbstractLoggingActor {
 		this.dataset = new Dataset(message, this.log());
 		
 		// Create a pliCache for this dataset
-		this.pliCache = new PliCache(message.getPlis().length);
+		this.pliCache = new PliCache(message.getPlis());
 		this.pliCacheManipulator = this.context().actorOf(PliCacheManipulator.props(this.pliCache), PliCacheManipulator.DEFAULT_NAME);
 		
 		// Create a filter for this dataset
 		this.filter = new BloomFilter();
 		this.filterManipulator = this.context().actorOf(FilterManipulator.props(this.filter), FilterManipulator.DEFAULT_NAME);
 		
-		// Create the data message
+		// Send the plis, pli-records, cache, and filter to all workers waiting for it
 		final DataMessage dataMessage = new DataMessage(this.dataset.getPlis(), this.dataset.getRecords(), this.pliCache, this.pliCacheManipulator, this.filter, this.filterManipulator);
-		
-		// Send the plis and pli-records to all validators waiting for it
-		for (ActorRef validator : this.waitingValidators)
-			validator.tell(dataMessage, this.self());
-		this.waitingValidators.clear();
+		for (ActorRef worker : this.waitingWorkers)
+			worker.tell(dataMessage, this.self());
+		this.waitingWorkers.clear();
 		
 		// Write dataset to disk for debugging
 //		this.dataset.writeToDisk("dataset");
