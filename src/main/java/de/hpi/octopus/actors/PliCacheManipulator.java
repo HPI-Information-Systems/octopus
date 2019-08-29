@@ -90,6 +90,8 @@ public class PliCacheManipulator extends AbstractLoggingActor {
 			this.cache.prune(this.pruneCacheSize);
 		}
 		
+		this.log().info("{} MB", this.cache.getByteSize() / 1000 / 1000);
+		
 		// Add new plis
 		for (int i = 0; i < message.getPlis().size(); i++)
 			this.cache.add(message.getPliAttributes().get(i), message.getPlis().get(i));
