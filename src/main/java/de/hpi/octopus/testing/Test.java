@@ -14,10 +14,70 @@ import de.hpi.octopus.actors.slaves.Worker;
 import de.hpi.octopus.serialization.OctopusMessageSerializer;
 import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.KryoPoolSingleton;
+import de.hpi.octopus.structures.PliCache;
 import lombok.Data;
+import scala.util.Random;
 
 public class Test {
 
+	public static void testMemoryCalculation() {
+		Random rand = new Random(42);
+		
+		int numAttributes = 1000;
+		int[][][] unaryPlis = new int[numAttributes][][];
+		for (int i = 0; i < unaryPlis.length; i++)
+			unaryPlis[i] = generatePli(rand);
+		
+		PliCache cache = new PliCache(unaryPlis);
+		
+		long used = measureUsedMemory();
+		
+		for (int i = 0; i < numAttributes - 1; i++) {
+			int[] addAttributes = {i, i};
+			cache.add(addAttributes, generatePli(rand));
+			int[] addAttributes2 = {i, i, i};
+			cache.add(addAttributes2, generatePli(rand));
+			
+			int[] blacklistAttributes = {i, i + 1};
+			cache.blacklist(blacklistAttributes);
+			int[] blacklistAttributes2 = {i, i + 1, i + 1};
+			cache.blacklist(blacklistAttributes2);
+			
+			int randomBlacklist = rand.nextInt(numAttributes);
+			int[] blacklistAttributes3 = {randomBlacklist, i};
+			cache.blacklist(blacklistAttributes3);
+		}
+		
+		System.out.println((measureUsedMemory() - used) + " bytes (measured)");
+		
+		System.out.println(cache.getByteSize() + " bytes (calculated)");
+	}
+	
+	private static int[][] generatePli(Random rand) {
+		int randClusterCountMin = 100;
+		int randClusterCountMax = 1000;
+		int randClusterSizeMin = 100;
+		int randClusterSizeMax = 1000;
+		
+		int[][] pli = new int[rand.nextInt(randClusterCountMax - randClusterCountMin) + randClusterCountMin][];
+		for (int i = 0; i < pli.length; i++) {
+			pli[i] = new int[rand.nextInt(randClusterSizeMax - randClusterSizeMin) + randClusterSizeMin];
+			for (int j = 0; j < pli[i].length; j++) {
+				pli[i][j] = rand.nextInt();
+			}
+		}
+		
+		return pli;
+	}
+	
+	private static long measureUsedMemory() {
+		Runtime.getRuntime().gc();
+		long max = Runtime.getRuntime().maxMemory();
+		long free = Runtime.getRuntime().freeMemory();
+		long used = max - free;
+		return used;
+	}
+	
 	public static void testKryo() throws NotSerializableException {
 
 		BitSet[] bitsets = new BitSet[200];

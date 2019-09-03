@@ -9,6 +9,7 @@ import de.hpi.octopus.configuration.ConfigurationSingleton;
 import de.hpi.octopus.configuration.DatasetDescriptor;
 import de.hpi.octopus.configuration.DatasetDescriptorSingleton;
 import de.hpi.octopus.io.RelationalInputGeneratorSingleton;
+import de.hpi.octopus.testing.Test;
 import de.hpi.octopus.io.FunctionalDependencyResultReceiverSingleton;
 import de.metanome.algorithm_integration.AlgorithmConfigurationException;
 import de.metanome.algorithm_integration.configuration.ConfigurationSettingFileInput;
