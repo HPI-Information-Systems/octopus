@@ -11,7 +11,9 @@ import akka.actor.AbstractLoggingActor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
 import de.hpi.octopus.actors.FilterManipulator.AddAllMessage;
-import de.hpi.octopus.actors.PliCacheManipulator.UpdateCacheMessage;
+import de.hpi.octopus.actors.PliCacheManipulator.BlacklistMessage;
+import de.hpi.octopus.actors.PliCacheManipulator.CacheMessage;
+import de.hpi.octopus.actors.PliCacheManipulator.NotifyMessage;
 import de.hpi.octopus.actors.slaves.Worker.DetailedValidationResultMessage;
 import de.hpi.octopus.actors.slaves.Worker.ValidationMessage;
 import de.hpi.octopus.configuration.ConfigurationSingleton;
@@ -85,7 +87,7 @@ public class Validator extends AbstractLoggingActor {
 	private final int validationSmallClusterSize;
 	private final ActorRef filterManipulator;
 	
-	private UpdateCacheMessage updateCacheMessage;
+	private boolean cacheUpdateInProgress = false;
 	private DetailedValidationMessage detailedValidationMessage;
 	private ActorRef detailedValidationMessageSender;
 	
@@ -108,7 +110,7 @@ public class Validator extends AbstractLoggingActor {
 
 	protected void handle(DetailedValidationMessage message) {
 		// Wait processing this message if there is still some pending cache update (if we do not wait for cache updates, the updates could accumulate and exhaust either the memory or the pliCacheManipulator's mail box)
-		if (this.updateCacheMessage != null) {
+		if (this.cacheUpdateInProgress) {
 			this.detailedValidationMessage = message;
 			this.detailedValidationMessageSender = this.sender();
 			return;
@@ -120,7 +122,7 @@ public class Validator extends AbstractLoggingActor {
 
 	protected void handle(CacheUpdatedMessage message) {
 		// Mark update as completed
-		this.updateCacheMessage = null;
+		this.cacheUpdateInProgress = false;
 		
 		// Process the pending validation message if one exists
 		if (this.detailedValidationMessage != null) {
@@ -133,9 +135,6 @@ public class Validator extends AbstractLoggingActor {
 	protected void process(DetailedValidationMessage message, ActorRef sender) {
 		// Initialize a container for the invalid FDs
 		List<FunctionalDependency> invalidFDs = new ArrayList<>(message.getLhss().length);
-		
-		// Initialize containers for the data that should be cached
-		this.updateCacheMessage = new UpdateCacheMessage(new ArrayList<>(message.getLhss().length), new ArrayList<>(message.getLhss().length), new ArrayList<>(message.getLhss().length));
 		
 		// Process the validation message		
 		int rhs = message.getRhs();
@@ -158,11 +157,9 @@ public class Validator extends AbstractLoggingActor {
 		if (!matches.isEmpty())
 			this.filterManipulator.tell(new AddAllMessage(matches), this.self());
 		
-		// Send the data for the cache to the pliCacheManipulator
-		if (!this.updateCacheMessage.isEmpty())
-			this.pliCacheManipulator.tell(this.updateCacheMessage, this.self());
-		else
-			this.updateCacheMessage = null;
+		// Send a notification request to the pliCacheManipulator to wait for the cache to finish all pending updates for this validator before sending more updates
+		if (this.cacheUpdateInProgress)
+			this.pliCacheManipulator.tell(new NotifyMessage(), this.self());
 		
 		// Derive the fds from the match results
 		for (BitSet invalidLhs : matches)
@@ -287,12 +284,13 @@ public class Validator extends AbstractLoggingActor {
 			int[][] intersectionPli = this.intersect(pivotPli, lhs[i - 1]);
 			
 			// Cache or blacklist the intersected pli depending on its reduction 
+			this.cacheUpdateInProgress = true;
 			if (this.pliCache.isWorthCaching(intersectionPli, prefix, pivotPli)) {
-				this.updateCacheMessage.addPli(intersectionPli, prefix);
+				this.pliCacheManipulator.tell(new CacheMessage(intersectionPli, prefix), this.self());
 				pivotPli = intersectionPli;
 			}
 			else {
-				this.updateCacheMessage.addBlacklist(prefix);
+				this.pliCacheManipulator.tell(new BlacklistMessage(prefix), this.self());
 				pivotPli = intersectionPli;
 				break;
 			}
