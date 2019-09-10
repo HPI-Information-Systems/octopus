@@ -9,6 +9,7 @@ import de.hpi.octopus.actors.LargeMessageProxy;
 import de.hpi.octopus.actors.Reaper;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public abstract class AbstractMaster extends AbstractLoggingActor {
 
@@ -20,10 +21,9 @@ public abstract class AbstractMaster extends AbstractLoggingActor {
 	// Actor Messages //
 	////////////////////
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class RegistrationMessage implements Serializable {
 		private static final long serialVersionUID = 3303081601659723997L;
-		private RegistrationMessage() {}
 		private String actorName;
 	}
 	

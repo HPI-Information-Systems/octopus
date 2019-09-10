@@ -17,6 +17,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public class LargeMessageProxy extends AbstractLoggingActor {
 
@@ -34,10 +35,9 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 	// Actor Messages //
 	////////////////////
 	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class LargeMessage<T> implements Serializable {
 		private static final long serialVersionUID = 2940665245810221108L;
-		private LargeMessage() {}
 		public LargeMessage(T message, ActorRef receiver) {
 			this.message = message;
 			this.receiver = receiver;
@@ -47,35 +47,31 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 		private boolean serializeWhenLocal = false; // For testing ...
 	}
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class StartLargeMessage implements Serializable {
 		private static final long serialVersionUID = 309151527831192292L;
-		private StartLargeMessage() {}
 		private int senderCounter;
 		private ActorRef sender;
 		private ActorRef receiver;
 	}
 	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class AckStartLargeMessage implements Serializable {
 		private static final long serialVersionUID = -2649789746787658450L;
-		private AckStartLargeMessage() {}
 		private int senderCounter;
 		private int receiverCounter;
 	}
 	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class BytesMessage implements Serializable {
 		private static final long serialVersionUID = 2940665245810221108L;
-		private BytesMessage() {}
 		private byte[] bytes;
 		private String transferKey;
 	}
 	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class AckBytesMessage implements Serializable {
 		private static final long serialVersionUID = -8119751796961718320L;
-		private AckBytesMessage() {}
 		private String transferKey;
 	}
 	

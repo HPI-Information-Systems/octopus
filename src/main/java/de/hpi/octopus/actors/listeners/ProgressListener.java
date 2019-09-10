@@ -17,6 +17,7 @@ import de.metanome.algorithm_integration.result_receiver.FunctionalDependencyRes
 import de.metanome.algorithm_integration.results.FunctionalDependency;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public class ProgressListener extends AbstractLoggingActor {
 
@@ -34,22 +35,20 @@ public class ProgressListener extends AbstractLoggingActor {
 	// Actor Messages //
 	////////////////////
 
-	@Data @AllArgsConstructor
+	@Data @NoArgsConstructor
 	public static class StartMessage implements Serializable {
 		private static final long serialVersionUID = 2861299512936301431L;
 	}
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class StewardsMessage implements Serializable {
 		private static final long serialVersionUID = -1614511937688496806L;
-		private StewardsMessage() {}
 		private int numStewards;
 	}
 	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class FinishedMessage implements Serializable {
 		private static final long serialVersionUID = -7509054641716826606L;
-		private FinishedMessage() {}
 		private BitSet[] lhss;
 		private int rhs;
 		private Dataset dataset;

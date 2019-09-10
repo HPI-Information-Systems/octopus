@@ -11,6 +11,7 @@ import de.metanome.algorithm_integration.input.RelationalInput;
 import de.metanome.algorithm_integration.input.RelationalInputGenerator;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public class DatasetReader extends AbstractLoggingActor {
 
@@ -33,17 +34,15 @@ public class DatasetReader extends AbstractLoggingActor {
 	// Actor Messages //
 	////////////////////
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class ReadMessage implements Serializable {
 		private static final long serialVersionUID = -3254147511955012292L;
-		private ReadMessage() {}
 		private int watermark;
 	}
 	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class RestartMessage implements Serializable {
 		private static final long serialVersionUID = -7999488286843626433L;
-		private RestartMessage() {}
 		private int watermark;
 	}
 	

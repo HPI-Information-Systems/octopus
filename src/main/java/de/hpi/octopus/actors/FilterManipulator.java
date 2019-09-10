@@ -9,6 +9,7 @@ import de.hpi.octopus.structures.BitSet;
 import de.hpi.octopus.structures.BloomFilter;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public class FilterManipulator extends AbstractLoggingActor {
 
@@ -30,24 +31,21 @@ public class FilterManipulator extends AbstractLoggingActor {
 	// Actor Messages //
 	////////////////////
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class AddMessage implements Serializable {
 		private static final long serialVersionUID = -50374816448627600L;
-		private AddMessage() {}
 		private BitSet element;
 	}
 	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class AddAllMessage implements Serializable {
 		private static final long serialVersionUID = 8343040942748609598L;
-		private AddAllMessage() {}
 		private List<BitSet> elements;
 	}
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class MergeMessage implements Serializable {
 		private static final long serialVersionUID = 6021174835855123367L;
-		private MergeMessage() {}
 		private BloomFilter other;
 	}
 

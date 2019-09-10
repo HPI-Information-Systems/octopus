@@ -20,6 +20,7 @@ import de.hpi.octopus.structures.FDTree;
 import de.hpi.octopus.structures.ValidationEfficiency;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public class DependencySteward extends AbstractLoggingActor {
 
@@ -46,20 +47,19 @@ public class DependencySteward extends AbstractLoggingActor {
 	// Actor Messages //
 	////////////////////
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class InvalidFDsMessage implements Serializable {
 		private static final long serialVersionUID = -102767440935270949L;
-		private InvalidFDsMessage() {}
 		private BitSet[] invalidLhss; // The invalid lhss for this rhs
 		private int numCandidates; // The number of candidates that have been tested for this rhs; -1 if the invalid FDs were found with candidates from other rhss or if sampling was used, because sampling is for everyone
 	}
 	
-	@Data @AllArgsConstructor
+	@Data @NoArgsConstructor
 	public static class CandidateRequestMessage implements Serializable {
 		private static final long serialVersionUID = -102767540935370948L;
 	}
 	
-	@Data @AllArgsConstructor
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class FinalizeMessage implements Serializable {
 		private static final long serialVersionUID = 1958938788143620773L;
 		private Dataset dataset;

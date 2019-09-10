@@ -10,8 +10,8 @@ import akka.actor.ActorRef;
 import akka.actor.ActorSelection;
 import akka.actor.Props;
 import akka.actor.Terminated;
-import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public class Reaper extends AbstractLoggingActor {
 
@@ -34,7 +34,7 @@ public class Reaper extends AbstractLoggingActor {
 	// Actor Messages //
 	////////////////////
 	
-	@Data @AllArgsConstructor
+	@Data @NoArgsConstructor
 	public static class WatchMeMessage implements Serializable {
 		private static final long serialVersionUID = -5201749681392553264L;
 	}

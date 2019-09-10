@@ -22,6 +22,7 @@ import de.hpi.octopus.structures.Dataset;
 import de.hpi.octopus.structures.PliCache;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public class Storekeeper extends AbstractLoggingActor {
 
@@ -39,15 +40,14 @@ public class Storekeeper extends AbstractLoggingActor {
 	// Actor Messages //
 	////////////////////
 
-	@Data @AllArgsConstructor
+	@Data @NoArgsConstructor
 	public static class SendDataMessage implements Serializable {
 		private static final long serialVersionUID = 543626437035529604L;
 	}
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class PlisMessage implements Serializable {
 		private static final long serialVersionUID = 1908085462567854277L;
-		private PlisMessage() {}
 		private int[][][] plis;
 		private int numRecords;
 	}

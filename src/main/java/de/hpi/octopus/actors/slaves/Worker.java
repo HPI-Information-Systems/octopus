@@ -25,6 +25,7 @@ import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public class Worker extends AbstractSlave {
 
@@ -46,43 +47,38 @@ public class Worker extends AbstractSlave {
 	// Actor Messages //
 	////////////////////
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class ValidationMessage implements Serializable {// OctopusMessage {//
 		private static final long serialVersionUID = -7643194361868862395L;
-		private ValidationMessage() {}
 		private BitSet[] lhss;
 		private int rhs;
 	}
 	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class SamplingMessage implements Serializable {
 		private static final long serialVersionUID = -8572954221161108586L;
-		private SamplingMessage() {}
 		private int attribute;
 		private int distance;
 	}
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class DetailedValidationResultMessage implements Serializable {
 		private static final long serialVersionUID = 5350065098247367868L;
-		private DetailedValidationResultMessage() {}
 		private List<FunctionalDependency> invalidFDs;
 		private int numCandidates;
 	}
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class DetailedSamplingResultMessage implements Serializable {
 		private static final long serialVersionUID = -1157340528394252282L;
-		private DetailedSamplingResultMessage() {}
 		private List<FunctionalDependency> invalidFDs;
 		private int numComparisons;
 		private int numMatches;
 	}
 	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class DataMessage implements Serializable {
 		private static final long serialVersionUID = -850201357295330326L;
-		private DataMessage() {}
 		private int[][][] plis;
 		private int[][] records;
 		private PliCache pliCache;

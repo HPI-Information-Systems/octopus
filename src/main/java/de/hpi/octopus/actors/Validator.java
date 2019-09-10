@@ -29,6 +29,7 @@ import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public class Validator extends AbstractLoggingActor {
 
@@ -56,10 +57,9 @@ public class Validator extends AbstractLoggingActor {
 	// Actor Messages //
 	////////////////////
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class DetailedValidationMessage implements Serializable {
 		private static final long serialVersionUID = -2470645794925505836L;
-		private DetailedValidationMessage() {}
 		public DetailedValidationMessage(final ValidationMessage message, final boolean[] finishedRhsAttributes) {
 			this.lhss = message.getLhss();
 			this.rhs = message.getRhs();
@@ -70,7 +70,7 @@ public class Validator extends AbstractLoggingActor {
 		private boolean[] finishedRhsAttributes;
 	}
 
-	@Data @AllArgsConstructor
+	@Data @NoArgsConstructor
 	public static class CacheUpdatedMessage implements Serializable {
 		private static final long serialVersionUID = 4154638604842955833L;
 	}

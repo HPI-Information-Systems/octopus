@@ -22,6 +22,7 @@ import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntIterator;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public class Indexer extends AbstractSlave {
 
@@ -39,46 +40,41 @@ public class Indexer extends AbstractSlave {
 	// Actor Messages //
 	////////////////////
 	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class IndexingMessage implements Serializable {
 		private static final long serialVersionUID = -3528385798844058013L;
-		private IndexingMessage() {}
 		private int attribute;
 		private String[] values;
 		private boolean nullEqualsNull;
 		private int watermark;
 	}
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class FinalizeMessage implements Serializable {
 		private static final long serialVersionUID = -3448209283277030409L;
-		private FinalizeMessage() {}
 		private int attribute;
 		private int watermark;
 	}
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class SendAttributesMessage implements Serializable {
 		private static final long serialVersionUID = -5717818659598486449L;
-		private SendAttributesMessage() {}
 		private int amount;
 		private ActorRef toActor;
 		private int watermark;
 	}
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class ReceiveAttributesMessage implements Serializable {
 		private static final long serialVersionUID = 9204994179561311962L;
-		private ReceiveAttributesMessage() {}
 		private Int2ObjectOpenHashMap<Map<String, IntArrayList>> attribute2value2positions = new Int2ObjectOpenHashMap<>();
 		private Int2IntOpenHashMap attribute2offset = new Int2IntOpenHashMap();
 		private int watermark;
 	}
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class ReceiveAttributesCompactMessage implements Serializable {
 		private static final long serialVersionUID = 9204994179561311962L;
-		private ReceiveAttributesCompactMessage() {}
 		private int[] attributes;
 		private int[] offsets;
 		private String[][] values;

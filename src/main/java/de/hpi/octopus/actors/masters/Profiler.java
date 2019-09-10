@@ -32,6 +32,7 @@ import de.hpi.octopus.structures.DependencyStewardRing;
 import de.hpi.octopus.structures.SamplingEfficiency;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public class Profiler extends AbstractMaster {
 
@@ -49,52 +50,47 @@ public class Profiler extends AbstractMaster {
 	// Actor Messages //
 	////////////////////
 	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class DiscoveryTaskMessage implements Serializable {
 		private static final long serialVersionUID = -8330958742629706627L;
-		private DiscoveryTaskMessage() {}
 		private int[][][] plis;
 		private int numRecords;
 		private String relationName;
 		private String[] columnNames;
 	}
 
-	@Data @AllArgsConstructor
+	@Data @NoArgsConstructor
 	public static class SendPlisMessage implements Serializable {
 		private static final long serialVersionUID = -8456522795571418518L;
 	}
 	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class CandidateMessage implements Serializable {
 		private static final long serialVersionUID = 8558551115259674228L;
-		private CandidateMessage() {}
 		private BitSet[] lhss;
 		private int rhs;
 	}
 	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class ValidationResultMessage implements Serializable {
 		private static final long serialVersionUID = -6823011111281387872L;
-		private ValidationResultMessage() {}
 		private BitSet[][] invalidLhss;
 		private int[] invalidRhss;
 		private int numCandidates;
 	}
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class SamplingResultMessage implements Serializable {
 		private static final long serialVersionUID = -7967800935003781138L;
-		private SamplingResultMessage() {}
 		private BitSet[][] invalidLhss;
 		private int[] invalidRhss;
 		private int numComparisons;
 		private int numMatches;
 	}
 	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class FDsUpdatedMessage implements Serializable {
 		private static final long serialVersionUID = 1182835629941183917L;
-		private FDsUpdatedMessage() {}
 		private int rhs;
 		private boolean updatePreference;
 		private boolean validation;

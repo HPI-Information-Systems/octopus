@@ -9,6 +9,7 @@ import de.hpi.octopus.actors.Validator.CacheUpdatedMessage;
 import de.hpi.octopus.structures.PliCache;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public class PliCacheManipulator extends AbstractLoggingActor {
 
@@ -38,22 +39,20 @@ public class PliCacheManipulator extends AbstractLoggingActor {
 	// Actor Messages //
 	////////////////////
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class CacheMessage implements Serializable {
 		private static final long serialVersionUID = -1216066687015611476L;
-		private CacheMessage() {}
 		private int[][] pli;
 		private int[] attributes;
 	}
 	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class BlacklistMessage implements Serializable {
 		private static final long serialVersionUID = 479879661255723452L;
-		private BlacklistMessage() {}
 		private int[] attributes;
 	}
 	
-	@Data @AllArgsConstructor
+	@Data @NoArgsConstructor
 	public static class NotifyMessage implements Serializable {
 		private static final long serialVersionUID = 1267398974030641018L;
 	}

@@ -14,8 +14,8 @@ import de.hpi.octopus.OctopusMaster;
 import de.hpi.octopus.actors.LargeMessageProxy;
 import de.hpi.octopus.actors.Reaper;
 import de.hpi.octopus.actors.masters.AbstractMaster;
-import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public abstract class AbstractSlave extends AbstractLoggingActor {
 
@@ -27,7 +27,7 @@ public abstract class AbstractSlave extends AbstractLoggingActor {
 	// Actor Messages //
 	////////////////////
 
-	@Data @AllArgsConstructor
+	@Data @NoArgsConstructor
 	public static class TerminateMessage implements Serializable {
 		private static final long serialVersionUID = 4184578526050265353L;
 	}

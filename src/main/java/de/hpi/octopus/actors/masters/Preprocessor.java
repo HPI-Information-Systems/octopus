@@ -27,6 +27,7 @@ import it.unimi.dsi.fastutil.objects.Object2IntMap.Entry;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public class Preprocessor extends AbstractMaster {
 
@@ -44,42 +45,38 @@ public class Preprocessor extends AbstractMaster {
 	// Actor Messages //
 	////////////////////
 
-	@Data @AllArgsConstructor
+	@Data @NoArgsConstructor
 	public static class PreprocessingTaskMessage implements Serializable {
 		private static final long serialVersionUID = -4788853430111845038L;
 	}
 	
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class IndexingResultMessage implements Serializable {
 		private static final long serialVersionUID = 5074517366545874380L;
-		private IndexingResultMessage() {}
 		private int attribute;
 		private int[][] pli;
 		private int inputLength;
 		private int watermark;
 	}
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class BatchMessage implements Serializable {
 		private static final long serialVersionUID = 7327628760076825469L;
-		private BatchMessage() {}
 		private List<List<String>> batch;
 		private String relationName;
 		private String[] columnNames;
 		private int watermark;
 	}
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class IndexingDoneMessage implements Serializable {
 		private static final long serialVersionUID = 1221354994262265715L;
-		private IndexingDoneMessage() {}
 		private int watermark;
 	}
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class ReallocationMessage implements Serializable {
 		private static final long serialVersionUID = 8794479344949532177L;
-		private ReallocationMessage() {}
 		private int[] attributes;
 		private int watermark;
 	}

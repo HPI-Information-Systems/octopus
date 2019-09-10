@@ -19,6 +19,7 @@ import de.hpi.octopus.structures.BloomFilter;
 import de.hpi.octopus.structures.FunctionalDependency;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public class Sampler extends AbstractLoggingActor {
 
@@ -43,10 +44,9 @@ public class Sampler extends AbstractLoggingActor {
 	// Actor Messages //
 	////////////////////
 
-	@Data @AllArgsConstructor @SuppressWarnings("unused")
+	@Data @NoArgsConstructor @AllArgsConstructor
 	public static class DetailedSamplingMessage implements Serializable {
 		private static final long serialVersionUID = 6609781303993431757L;
-		private DetailedSamplingMessage() {}
 		public DetailedSamplingMessage(final SamplingMessage message, final boolean[] finishedRhsAttributes) {
 			this.attribute = message.getAttribute();
 			this.distance = message.getDistance();
