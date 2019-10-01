@@ -47,10 +47,7 @@ public class PliCache {
 		this.byteSize += this.children[attributes[childIndex]].add(attributes, childIndex + 1, pli);
 	}
 	
-	public void prune(long bytesToPrune) {
-		final long minSize = this.children.length * (this.children.length * (12 + 4 + 4 + 4 + 8));	// If all prefixes are pruned, each unary pli has all children pruned, where a pruned child has a size of 32 byte.
-		final long targetSize = Math.max(this.byteSize - bytesToPrune, minSize);
-		
+	public void prune(long targetSize) {
 		while (this.byteSize > targetSize) {
 			for (int i = 0; i < this.children.length; i++)
 				this.byteSize += this.children[i].prune(this.readsThreshold);

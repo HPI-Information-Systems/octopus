@@ -19,6 +19,7 @@ import akka.stream.javadsl.StreamRefs;
 import akka.util.ByteString;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 public class TestActor extends AbstractLoggingActor {
 
@@ -41,6 +42,16 @@ public class TestActor extends AbstractLoggingActor {
 		private static final long serialVersionUID = -3254147511955012292L;
 		private TestMessage() {}
 		private int[] data;
+	}
+	
+	@Data @NoArgsConstructor
+	public static class MakeBusyMessage implements Serializable {
+		private static final long serialVersionUID = -596309775820230869L;
+	}
+	
+	@Data @NoArgsConstructor
+	public static class PingMessage implements Serializable {
+		private static final long serialVersionUID = -596309775820230869L;
 	}
 
 	/////////////////
@@ -65,6 +76,8 @@ public class TestActor extends AbstractLoggingActor {
 	@Override
 	public Receive createReceive() {
 		return receiveBuilder()
+				.match(MakeBusyMessage.class, this::handle)
+				.match(PingMessage.class, this::handle)
 				.match(TestMessage.class, this::handle)
 				.match(String.class, this::handle)
 				.match(SourceRef.class, this::handle)
@@ -123,5 +136,19 @@ public class TestActor extends AbstractLoggingActor {
 		completionStage.whenComplete((done, throwable) -> {
 			// ...
 		});
+	}
+	
+	private void handle(MakeBusyMessage message) {
+		while (true) {
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	private void handle(PingMessage message) {
+		System.out.println("ping");
 	}
 }

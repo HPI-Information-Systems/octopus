@@ -20,6 +20,7 @@ import de.hpi.octopus.actors.slaves.Indexer;
 import de.hpi.octopus.actors.slaves.Worker;
 import de.hpi.octopus.configuration.Configuration;
 import de.hpi.octopus.configuration.ConfigurationSingleton;
+import de.hpi.octopus.testing.TestActor;
 import scala.concurrent.Await;
 import scala.concurrent.duration.Duration;
 
@@ -65,6 +66,15 @@ public class OctopusMaster extends OctopusSystem {
 			//	ActorRef testActor2 = system.actorOf(TestActor.props(testActor1), TestActor.DEFAULT_NAME + 2);
 			//	testActor2.tell("Hello", ActorRef.noSender());
 				
+			//	for (int i = 0; i < 12; i++) {
+			//		ActorRef testActor = system.actorOf(TestActor.props(null), TestActor.DEFAULT_NAME + i);
+			//		testActor.tell(new TestActor.MakeBusyMessage(), ActorRef.noSender());
+			//	}
+			//	ActorRef testActor = system.actorOf(TestActor.props(null), TestActor.DEFAULT_NAME);
+			//	for (int i = 0; i < 100; i++) {
+			//		testActor.tell(new TestActor.PingMessage(), ActorRef.noSender());
+			//	}
+				
 				if (!c.isStartPaused())
 					system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new PreprocessingTaskMessage(), ActorRef.noSender());
 			}
@@ -79,7 +89,7 @@ public class OctopusMaster extends OctopusSystem {
 			system.actorSelection("/user/" + Preprocessor.DEFAULT_NAME).tell(new PreprocessingTaskMessage(), ActorRef.noSender());
 		}
 		
-		while (true) {
+/*		while (true) {
 			try {
 				Await.ready(system.whenTerminated(), Duration.create(1, TimeUnit.MINUTES));
 				break;
@@ -88,5 +98,5 @@ public class OctopusMaster extends OctopusSystem {
 		}
 		
 		System.out.println("The end!");
-	}
+*/	}
 }

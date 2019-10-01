@@ -19,21 +19,21 @@ public class DatasetDescriptor implements Serializable {
 	private static final long serialVersionUID = 1985782678973727520L;
 	
 	private String datasetName = "ncvoter_Statewide_10001r_71c"; // "ncvoter_Statewide_1024001r_71c"
-	private String datasetPath = "data/"; // "/home/thorsten/Data/Development/workspace/papenbrock/HyFDTestRunner/data/"
+	private String datasetPath = "data" + File.separator; // "/home/thorsten/Data/Development/workspace/papenbrock/HyFDTestRunner/data"
 	private String datasetEnding = ".csv";
 
 	private boolean fileHasHeader = true;
 	private Charset charset = StandardCharsets.UTF_8;
 	
-	private char attributeSeparator = ','; // ';'
-	private char attributeQuote = '"';
-	private char attributeEscape = '\\';
-	private String attributeNullString = "";
-	private boolean attributeStrictQuotes = false;
-	private boolean attributeIgnoreLeadingWhitespace = true;	// Ignore i.e. delete all whitespaces preceding any read value 
+	private char valueSeparator = ','; // ';'
+	private char valueQuote = '"';
+	private char valueEscape = '\\';
+	private String valueNullString = "";
+	private boolean valueStrictQuotes = false;
+	private boolean valueIgnoreLeadingWhitespace = true;	// Ignore i.e. delete all whitespaces preceding any read value 
 	
-	private int readerSkipLines = 0;							// Number of lines that should be skipped at the beginning of the file
-	private boolean readerSkipDifferingLines = true;			// True if the reader should skip lines in the input that have a different length as the first line
+	private int readerSkipLines = 0;						// Number of lines that should be skipped at the beginning of the file
+	private boolean readerSkipDifferingLines = true;		// True if the reader should skip lines in the input that have a different length as the first line
 	
 	public String getDatasetPathNameEnding() {
 		String pathNameSeparator = this.datasetPath.endsWith(File.separator) ? "" : File.separator;
@@ -48,20 +48,20 @@ public class DatasetDescriptor implements Serializable {
 		this.datasetEnding = commandMaster.datasetEnding;
 		this.fileHasHeader = commandMaster.fileHasHeader;
 		this.charset = commandMaster.charset;
-		this.attributeSeparator = commandMaster.attributeSeparator;
-		this.attributeQuote = commandMaster.attributeQuote;
-		this.attributeEscape = commandMaster.attributeEscape;
-		this.attributeNullString = commandMaster.attributeNullString;
-		this.attributeStrictQuotes = commandMaster.attributeStrictQuotes;
-		this.attributeIgnoreLeadingWhitespace = commandMaster.attributeIgnoreLeadingWhitespace;
+		this.valueSeparator = commandMaster.attributeSeparator;
+		this.valueQuote = commandMaster.attributeQuote;
+		this.valueEscape = commandMaster.attributeEscape;
+		this.valueNullString = commandMaster.attributeNullString;
+		this.valueStrictQuotes = commandMaster.attributeStrictQuotes;
+		this.valueIgnoreLeadingWhitespace = commandMaster.attributeIgnoreLeadingWhitespace;
 		this.readerSkipLines = commandMaster.readerSkipLines;
 		this.readerSkipDifferingLines = commandMaster.readerSkipDifferingLines;
 	}
 	
 	public RelationalInputGenerator createRelationalInputGenerator() throws AlgorithmConfigurationException {
 		return new DefaultFileInputGenerator(new ConfigurationSettingFileInput(
-				this.getDatasetPathNameEnding(), true, this.attributeSeparator, this.attributeQuote, 
-				this.attributeEscape, this.attributeStrictQuotes, this.attributeIgnoreLeadingWhitespace, 
-				this.readerSkipLines, this.fileHasHeader, this.readerSkipDifferingLines, this.attributeNullString));
+				this.getDatasetPathNameEnding(), true, this.valueSeparator, this.valueQuote, 
+				this.valueEscape, this.valueStrictQuotes, this.valueIgnoreLeadingWhitespace, 
+				this.readerSkipLines, this.fileHasHeader, this.readerSkipDifferingLines, this.valueNullString));
 	}
 }

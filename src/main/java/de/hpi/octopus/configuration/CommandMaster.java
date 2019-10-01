@@ -54,23 +54,23 @@ public class CommandMaster extends Command {
 	@Parameter(names = { "-cs", "--charset" }, description = "Charset as defined by the input data", required = false)
 	Charset charset = DatasetDescriptorSingleton.get().getCharset();
 
-	@Parameter(names = { "-as", "--attributeSeparator" }, description = "Attribute separator as defined by the input data", required = false)
-	char attributeSeparator = DatasetDescriptorSingleton.get().getAttributeSeparator();
+	@Parameter(names = { "-vs", "--valueSeparator" }, description = "Value separator as defined by the input data", required = false)
+	char attributeSeparator = DatasetDescriptorSingleton.get().getValueSeparator();
 
-	@Parameter(names = { "-aq", "--attributeQuote" }, description = "Attribute quote as defined by the input data", required = false)
-	char attributeQuote = DatasetDescriptorSingleton.get().getAttributeQuote();
+	@Parameter(names = { "-vq", "--valueQuote" }, description = "Value quote as defined by the input data", required = false)
+	char attributeQuote = DatasetDescriptorSingleton.get().getValueQuote();
 
-	@Parameter(names = { "-ae", "--attributeEscape" }, description = "Attribute escape as defined by the input data", required = false)
-	char attributeEscape = DatasetDescriptorSingleton.get().getAttributeEscape();
+	@Parameter(names = { "-ve", "--valueEscape" }, description = "Value escape as defined by the input data", required = false)
+	char attributeEscape = DatasetDescriptorSingleton.get().getValueEscape();
 
-	@Parameter(names = { "-an", "--attributeNullString" }, description = "Attribute null string as defined by the input data", required = false)
-	String attributeNullString = DatasetDescriptorSingleton.get().getAttributeNullString();
+	@Parameter(names = { "-vn", "--valueNullString" }, description = "Value null string as defined by the input data", required = false)
+	String attributeNullString = DatasetDescriptorSingleton.get().getValueNullString();
 
-	@Parameter(names = { "-asq", "--attributeStrictQuotes" }, description = "Attribute strict quotes as defined by the input data", required = false)
-	boolean attributeStrictQuotes = DatasetDescriptorSingleton.get().isAttributeStrictQuotes();
+	@Parameter(names = { "-vsq", "--valueStrictQuotes" }, description = "Value strict quotes as defined by the input data", required = false)
+	boolean attributeStrictQuotes = DatasetDescriptorSingleton.get().isValueStrictQuotes();
 
-	@Parameter(names = { "-iw", "--attributeIgnoreLeadingWhitespace" }, description = "Ignore i.e. delete all whitespaces preceding any read value ", required = false)
-	boolean attributeIgnoreLeadingWhitespace = DatasetDescriptorSingleton.get().isAttributeIgnoreLeadingWhitespace();
+	@Parameter(names = { "-viw", "--valueIgnoreLeadingWhitespace" }, description = "Ignore i.e. delete all whitespaces preceding any read value ", required = false)
+	boolean attributeIgnoreLeadingWhitespace = DatasetDescriptorSingleton.get().isValueIgnoreLeadingWhitespace();
 
 	@Parameter(names = { "-rsl", "--readerSkipLines" }, description = "Number of lines that should be skipped at the beginning of the file", required = false)
 	int readerSkipLines = DatasetDescriptorSingleton.get().getReaderSkipLines();

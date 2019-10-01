@@ -97,7 +97,7 @@ public abstract class AbstractSlave extends AbstractLoggingActor {
 			
 			this.getContext()
 				.actorSelection(member.address() + "/user/" + this.getMasterName())
-				.tell(new AbstractMaster.RegistrationMessage(this.getName()), this.self());
+				.tell(new AbstractMaster.RegistrationMessage(), this.self());
 		}
 	}
 	

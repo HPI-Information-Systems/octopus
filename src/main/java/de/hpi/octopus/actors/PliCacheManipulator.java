@@ -32,7 +32,6 @@ public class PliCacheManipulator extends AbstractLoggingActor {
 		long usedMemory = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed();
 		
 		this.maxCacheSize = (long) (0.5 * (maxMemory - usedMemory)); // TODO: parameter? use fix 50% of available memory for cache?
-		this.pruneCacheSize = (long) (this.maxCacheSize * 0.8f); // TODO: parameter?
 	}
 
 	////////////////////
@@ -64,7 +63,6 @@ public class PliCacheManipulator extends AbstractLoggingActor {
 	private volatile PliCache cache;
 	
 	private long maxCacheSize;
-	private long pruneCacheSize;
 	
 	/////////////////////
 	// Actor Lifecycle //
@@ -87,14 +85,9 @@ public class PliCacheManipulator extends AbstractLoggingActor {
 	protected void handle(CacheMessage message) {
 		// Add new pli
 		this.cache.add(message.getAttributes(), message.getPli());
-
-	//	this.log().info("{} MB", this.cache.getByteSize() / 1000 / 1000);
-			
+		
 		// Check memory consumption and remove plis from the cache if memory is exhausted
-		if (this.cache.getByteSize() > this.maxCacheSize) {
-			this.log().info("Pruning pli cache from {} byte, which is over the maximum of {} byte, to under {} byte.", this.cache.getByteSize(), this.maxCacheSize, this.pruneCacheSize);
-			this.cache.prune(this.pruneCacheSize);
-		}
+		this.ensureCapacity();
 		
 		// Reset the cache reference to make its elements effectively volatile
 		this.cache = this.cache;
@@ -103,17 +96,22 @@ public class PliCacheManipulator extends AbstractLoggingActor {
 	protected void handle(BlacklistMessage message) {
 		// Blacklist pli
 		this.cache.blacklist(message.getAttributes());
-
-	//	this.log().info("{} MB", this.cache.getByteSize() / 1000 / 1000);
-			
+		
 		// Check memory consumption and remove plis from the cache if memory is exhausted
-		if (this.cache.getByteSize() > this.maxCacheSize) {
-			this.log().info("Pruning pli cache from {} byte, which is over the maximum of {} byte, to under {} byte.", this.cache.getByteSize(), this.maxCacheSize, this.pruneCacheSize);
-			this.cache.prune(this.pruneCacheSize);
-		}
+		this.ensureCapacity();
 		
 		// Reset the cache reference to make its elements effectively volatile
 		this.cache = this.cache;
+	}
+	
+	protected void ensureCapacity() {
+	//	this.log().info("{} MB", this.cache.getByteSize() / 1000 / 1000);
+		
+		if (this.cache.getByteSize() > this.maxCacheSize) {
+			final long oldSize = this.cache.getByteSize();
+			this.cache.prune(this.maxCacheSize);final long newSize = this.cache.getByteSize();
+			this.log().info("Pruned pli cache from {} byte, which is over the maximum of {} byte, to under {} byte.", oldSize, this.maxCacheSize, newSize);
+		}
 	}
 	
 	protected void handle(NotifyMessage message) {

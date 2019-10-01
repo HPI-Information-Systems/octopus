@@ -19,7 +19,7 @@ public class DatasetReader extends AbstractLoggingActor {
 	// Actor Construction //
 	////////////////////////
 	
-	public static final String DEFAULT_NAME = "inputReader";
+	public static final String DEFAULT_NAME = "datasetReader";
 
 	public static Props props(RelationalInputGenerator relationalInputGenerator, int bufferSize) {
 		return Props.create(DatasetReader.class, () -> new DatasetReader(relationalInputGenerator, bufferSize));
@@ -113,12 +113,10 @@ public class DatasetReader extends AbstractLoggingActor {
 	}
 
 	private void send(int watermark) {
-		if (this.buffer.isEmpty()) {
+		if (this.buffer.isEmpty())
 			this.sender().tell(new Preprocessor.BatchMessage(null, this.relationName, this.columnNames, watermark), this.self());
-			return;
-		}
-		
-		this.sender().tell(new Preprocessor.BatchMessage(this.buffer, null, null, watermark), this.self());
+		else
+			this.sender().tell(new Preprocessor.BatchMessage(this.buffer, null, null, watermark), this.self());
 	}
 	
 	private void read() throws Exception {

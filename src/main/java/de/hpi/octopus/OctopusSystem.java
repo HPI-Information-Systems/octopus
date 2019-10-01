@@ -16,13 +16,13 @@ public class OctopusSystem {
 		
 		// Create the Config with fallback to the application config
 		return ConfigFactory.parseString(
-				"akka.remote.netty.tcp.hostname = \"" + host + "\"\n" +
-				"akka.remote.netty.tcp.port = " + port + "\n" + 
+//				"akka.remote.netty.tcp.hostname = \"" + host + "\"\n" + 	// netty was replaced by artery
+//				"akka.remote.netty.tcp.port = " + port + "\n" + 			// netty was replaced by artery
 				"akka.remote.artery.canonical.hostname = \"" + host + "\"\n" +
 				"akka.remote.artery.canonical.port = " + port + "\n" +
 				"akka.cluster.roles = [" + actorSystemRole + "]\n" +
 				"akka.cluster.seed-nodes = [\"akka://" + actorSystemName + "@" + masterhost + ":" + masterport + "\"]")
-			.withFallback(ConfigFactory.load("octopus"));
+			.withFallback(ConfigFactory.load("application"));
 	}
 	
 	public static ActorSystem createSystem(String actorSystemName, Config config) {
