@@ -21,14 +21,14 @@ public class OctopusSlave extends OctopusSystem {
 		final Config config = createConfiguration(c.getActorSystemName(), SLAVE_ROLE, c.getHost(), c.getPort(), c.getMasterHost(), c.getMasterPort());
 		final ActorSystem system = createSystem(c.getActorSystemName(), config);
 		
+		ActorRef reaper = system.actorOf(Reaper.props(), Reaper.DEFAULT_NAME);
+		
+	//	ActorRef clusterListener = system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
+	//	ActorRef metricsListener = system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
+
 		Cluster.get(system).registerOnMemberUp(new Runnable() {
 			@Override
 			public void run() {
-				ActorRef reaper = system.actorOf(Reaper.props(), Reaper.DEFAULT_NAME);
-				
-			//	ActorRef clusterListener = system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
-			//	ActorRef metricsListener = system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
-
 				for (int i = 0; i < c.getNumWorkers(); i++)
 					system.actorOf(Indexer.props(), Indexer.DEFAULT_NAME + i);
 
